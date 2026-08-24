@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Check } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 
@@ -29,6 +30,7 @@ export function WorkoutCalendar() {
   const [statusByDate, setStatusByDate] = useState<Record<string, DayStatus>>({})
   const [streak, setStreak] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   const now = new Date()
   const year = now.getFullYear()
@@ -40,10 +42,13 @@ export function WorkoutCalendar() {
 
   async function load() {
     setLoading(true)
+    setError(null)
     const {
-      data: { user },
-    } = await supabase.auth.getUser()
+      data: { session },
+    } = await supabase.auth.getSession()
+    const user = session?.user
     if (!user) {
+      setError('Could not load calendar data.')
       setLoading(false)
       return
     }
@@ -51,7 +56,7 @@ export function WorkoutCalendar() {
     const monthStart = toDateStr(new Date(year, month, 1))
     const monthEnd = toDateStr(new Date(year, month + 1, 1))
 
-    const [{ data: monthSessions }, { data: allSessions }] = await Promise.all([
+    const [monthResult, allResult] = await Promise.all([
       supabase
         .from('workout_sessions')
         .select('id, date, session_exercises(id, session_sets(id, status))')
@@ -60,6 +65,15 @@ export function WorkoutCalendar() {
         .lt('date', monthEnd),
       supabase.from('workout_sessions').select('date').eq('user_id', user.id),
     ])
+
+    if (monthResult.error || allResult.error) {
+      setError('Could not load calendar data.')
+      setLoading(false)
+      return
+    }
+
+    const monthSessions = monthResult.data
+    const allSessions = allResult.data
 
     const setsByDate: Record<string, { status: string }[]> = {}
     for (const session of monthSessions ?? []) {
@@ -98,12 +112,19 @@ export function WorkoutCalendar() {
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle className="font-heading text-2xl">{monthLabel}</CardTitle>
-          <span className="text-sm font-medium">🔥 {streak} day streak</span>
+          {!error && <span className="text-sm font-medium">🔥 {streak} day streak</span>}
         </div>
       </CardHeader>
       <CardContent>
         {loading ? (
           <p className="text-sm text-muted-foreground">Loading…</p>
+        ) : error ? (
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-destructive">{error}</p>
+            <Button variant="outline" size="sm" onClick={load}>
+              Retry
+            </Button>
+          </div>
         ) : (
           <div className="grid grid-cols-7 gap-1.5">
             {WEEKDAY_LABELS.map((label, i) => (
