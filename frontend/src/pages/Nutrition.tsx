@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Apple, Dumbbell, LogOut } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -145,9 +146,13 @@ export default function Nutrition() {
   return (
     <div className="min-h-svh bg-background">
       <nav className="flex items-center justify-between border-b border-border px-4 py-3 sm:px-6">
-        <span className="font-heading font-medium">Nutrition</span>
+        <span className="flex items-center gap-2 font-heading text-lg">
+          <Apple className="size-5" />
+          Nutrition
+        </span>
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="sm" onClick={() => navigate('/')}>
+            <Dumbbell className="size-4" />
             Dashboard
           </Button>
           <Button
@@ -158,6 +163,7 @@ export default function Nutrition() {
               navigate('/login')
             }}
           >
+            <LogOut className="size-4" />
             Logout
           </Button>
         </div>

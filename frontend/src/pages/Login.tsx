@@ -44,7 +44,7 @@ export default function Login() {
       <div className="mx-auto flex min-h-[calc(100svh-2rem)] max-w-2xl items-center justify-center">
         <Card className="w-full max-w-sm">
         <CardHeader>
-          <CardTitle>Log in</CardTitle>
+          <CardTitle className="font-heading text-3xl">Log in</CardTitle>
           <CardDescription>Welcome back.</CardDescription>
         </CardHeader>
         <CardContent>

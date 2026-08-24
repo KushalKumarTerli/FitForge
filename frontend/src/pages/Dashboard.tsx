@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Apple, Dumbbell, LogOut } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import {
@@ -179,12 +180,17 @@ export default function Dashboard() {
   return (
     <div className="min-h-svh bg-background">
       <nav className="flex items-center justify-between border-b border-border px-4 py-3 sm:px-6">
-        <span className="font-heading font-medium">Dashboard</span>
+        <span className="flex items-center gap-2 font-heading text-lg">
+          <Dumbbell className="size-5" />
+          Dashboard
+        </span>
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="sm" onClick={() => navigate('/nutrition')}>
+            <Apple className="size-4" />
             Nutrition
           </Button>
           <Button variant="outline" size="sm" onClick={handleLogout}>
+            <LogOut className="size-4" />
             Logout
           </Button>
         </div>

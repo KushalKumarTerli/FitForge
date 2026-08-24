@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Check } from 'lucide-react'
+import { Check, Clock } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import {
@@ -241,7 +241,8 @@ export default function Workout() {
     <div className="mx-auto flex max-w-4xl flex-col gap-4 p-4 sm:p-6">
       <Card>
         <CardHeader className="items-center text-center">
-          <CardTitle className="text-5xl tabular-nums sm:text-6xl">
+          <CardTitle className="font-heading flex items-center justify-center gap-3 text-5xl tabular-nums sm:text-6xl">
+            <Clock className="size-8 text-muted-foreground sm:size-10" />
             {formatDuration(elapsedSeconds)}
           </CardTitle>
           <CardDescription>

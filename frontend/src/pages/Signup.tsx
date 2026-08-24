@@ -68,7 +68,7 @@ export default function Signup() {
       <div className="mx-auto flex min-h-[calc(100svh-2rem)] max-w-2xl items-center justify-center">
         <Card className="w-full max-w-sm">
         <CardHeader>
-          <CardTitle>Create your account</CardTitle>
+          <CardTitle className="font-heading text-3xl">Create your account</CardTitle>
           <CardDescription>Start tracking your workouts and nutrition.</CardDescription>
         </CardHeader>
         <CardContent>
