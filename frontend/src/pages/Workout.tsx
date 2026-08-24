@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Check, Clock } from 'lucide-react'
+import { AnimatePresence, motion } from 'framer-motion'
 import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import {
@@ -11,6 +12,8 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
+import { AppHeader } from '@/components/AppHeader'
+import { RadialProgress } from '@/components/RadialProgress'
 
 type SessionRow = {
   id: string
@@ -189,62 +192,81 @@ export default function Workout() {
 
   if (!sessionId) {
     return (
-      <div className="mx-auto max-w-4xl p-4 sm:p-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>No active workout</CardTitle>
-            <CardDescription>Start a workout from the dashboard first.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button onClick={() => navigate('/')}>Back to Dashboard</Button>
-          </CardContent>
-        </Card>
+      <div className="min-h-svh bg-background">
+        <AppHeader />
+        <div className="mx-auto max-w-4xl p-4 sm:p-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>No active workout</CardTitle>
+              <CardDescription>Start a workout from the dashboard first.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button onClick={() => navigate('/')}>Back to Dashboard</Button>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     )
   }
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-4xl p-4 sm:p-6">
-        <p className="text-sm text-muted-foreground">Loading…</p>
+      <div className="min-h-svh bg-background">
+        <AppHeader />
+        <div className="mx-auto max-w-4xl p-4 sm:p-6">
+          <p className="text-sm text-muted-foreground">Loading…</p>
+        </div>
       </div>
     )
   }
 
   if (summary) {
     return (
-      <div className="mx-auto max-w-4xl p-4 sm:p-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Workout complete</CardTitle>
-            <CardDescription>Nice work.</CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="rounded-lg border border-border p-3 text-center">
-                <p className="text-2xl font-semibold">{Math.round(summary.calories)}</p>
-                <p className="text-sm text-muted-foreground">calories</p>
+      <div className="min-h-svh bg-background">
+        <AppHeader />
+        <div className="mx-auto max-w-4xl p-4 sm:p-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Workout complete</CardTitle>
+              <CardDescription>Nice work.</CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="rounded-lg border border-border p-3 text-center">
+                  <p className="text-2xl font-semibold">{Math.round(summary.calories)}</p>
+                  <p className="text-sm text-muted-foreground">calories</p>
+                </div>
+                <div className="rounded-lg border border-border p-3 text-center">
+                  <p className="text-2xl font-semibold">{formatDuration(summary.durationSeconds)}</p>
+                  <p className="text-sm text-muted-foreground">total time</p>
+                </div>
               </div>
-              <div className="rounded-lg border border-border p-3 text-center">
-                <p className="text-2xl font-semibold">{formatDuration(summary.durationSeconds)}</p>
-                <p className="text-sm text-muted-foreground">total time</p>
-              </div>
-            </div>
-            <Button onClick={() => navigate('/')}>Back to Dashboard</Button>
-          </CardContent>
-        </Card>
+              <Button onClick={() => navigate('/')}>Back to Dashboard</Button>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="mx-auto flex max-w-4xl flex-col gap-4 p-4 sm:p-6">
+    <div className="min-h-svh bg-background">
+      <AppHeader />
+      <div className="mx-auto flex max-w-4xl flex-col gap-4 p-4 sm:p-6">
       <Card>
-        <CardHeader className="items-center text-center">
-          <CardTitle className="font-heading flex items-center justify-center gap-3 text-5xl tabular-nums sm:text-6xl">
-            <Clock className="size-8 text-muted-foreground sm:size-10" />
-            {formatDuration(elapsedSeconds)}
-          </CardTitle>
+        <CardHeader className="items-center">
+          <div className="flex items-center justify-center gap-6">
+            <div className="relative flex items-center justify-center">
+              <RadialProgress value={allSets.length ? completedCount / allSets.length : 0} />
+              <span className="absolute text-sm font-semibold tabular-nums">
+                {completedCount}/{allSets.length}
+              </span>
+            </div>
+            <CardTitle className="font-heading flex items-center gap-3 text-5xl tabular-nums sm:text-6xl">
+              <Clock className="size-8 text-muted-foreground sm:size-10" />
+              {formatDuration(elapsedSeconds)}
+            </CardTitle>
+          </div>
           <CardDescription>
             {completedCount} / {allSets.length} sets completed
           </CardDescription>
@@ -266,26 +288,37 @@ export default function Workout() {
                     ? `${set.target_reps} reps`
                     : `${set.target_duration_seconds}s`
                 return (
-                  <button
+                  <motion.button
                     key={set.id}
                     type="button"
                     disabled={isCompleted}
                     onClick={() => completeSet(se.id, set.id)}
+                    whileTap={!isCompleted ? { scale: 0.94 } : undefined}
                     className={cn(
-                      'flex min-h-16 min-w-24 flex-col items-center justify-center gap-1 rounded-xl border-2 px-4 py-3 text-sm font-medium transition-colors',
+                      'flex min-h-18 min-w-28 flex-col items-center justify-center gap-1 rounded-xl border-2 px-4 py-3 text-sm font-medium transition-colors',
                       isCompleted
-                        ? 'border-primary bg-primary text-primary-foreground shadow-sm'
+                        ? 'border-primary bg-primary text-primary-foreground shadow-md shadow-primary/30'
                         : 'border-border bg-muted/40 text-foreground hover:border-ring hover:bg-muted'
                     )}
                   >
                     <span className="flex items-center gap-1.5 font-semibold">
-                      {isCompleted && <Check className="size-4" />}
+                      <AnimatePresence>
+                        {isCompleted && (
+                          <motion.span
+                            initial={{ scale: 0 }}
+                            animate={{ scale: 1 }}
+                            transition={{ type: 'spring', stiffness: 500, damping: 20 }}
+                          >
+                            <Check className="size-4" />
+                          </motion.span>
+                        )}
+                      </AnimatePresence>
                       Set {set.set_number}
                     </span>
                     <span className={isCompleted ? 'text-primary-foreground/80' : 'text-muted-foreground'}>
                       {target}
                     </span>
-                  </button>
+                  </motion.button>
                 )
               })}
             </div>
@@ -298,6 +331,7 @@ export default function Workout() {
       <Button disabled={finishing} onClick={handleFinishWorkout}>
         {finishing ? 'Finishing…' : 'Finish Workout'}
       </Button>
+      </div>
     </div>
   )
 }

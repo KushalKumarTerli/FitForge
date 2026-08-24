@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { User as UserIcon } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { AppHeader } from '@/components/AppHeader'
 
 type Profile = {
   full_name: string
@@ -13,10 +13,13 @@ type Profile = {
   height_cm: number
   phone_number: string | null
   avatar_url: string | null
+  age: number | null
+  gender: string | null
 }
 
+const GENDER_OPTIONS = ['Male', 'Female', 'Other', 'Prefer not to say']
+
 export default function Profile() {
-  const navigate = useNavigate()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [userId, setUserId] = useState<string | null>(null)
@@ -25,6 +28,8 @@ export default function Profile() {
   const [weightKg, setWeightKg] = useState('')
   const [heightCm, setHeightCm] = useState('')
   const [phoneNumber, setPhoneNumber] = useState('')
+  const [age, setAge] = useState('')
+  const [gender, setGender] = useState('')
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -48,7 +53,7 @@ export default function Profile() {
 
     const { data } = await supabase
       .from('profiles')
-      .select('full_name, weight_kg, height_cm, phone_number, avatar_url')
+      .select('full_name, weight_kg, height_cm, phone_number, avatar_url, age, gender')
       .eq('id', user.id)
       .single()
 
@@ -58,6 +63,8 @@ export default function Profile() {
       setHeightCm(String(data.height_cm ?? ''))
       setPhoneNumber(data.phone_number ?? '')
       setAvatarUrl(data.avatar_url)
+      setAge(data.age != null ? String(data.age) : '')
+      setGender(data.gender ?? '')
     }
     setLoading(false)
   }
@@ -80,6 +87,8 @@ export default function Profile() {
         weight_kg: Number(weightKg),
         height_cm: Number(heightCm),
         phone_number: phoneNumber.trim() || null,
+        age: age.trim() ? Number(age) : null,
+        gender: gender || null,
       })
       .eq('id', userId)
 
@@ -135,14 +144,9 @@ export default function Profile() {
 
   return (
     <div className="min-h-svh bg-background">
-      <nav className="flex items-center justify-between border-b border-border px-4 py-3 sm:px-6">
-        <span className="font-heading text-lg">Profile</span>
-        <Button variant="ghost" size="sm" onClick={() => navigate('/')}>
-          Back to Dashboard
-        </Button>
-      </nav>
+      <AppHeader />
 
-      <div className="mx-auto flex max-w-2xl flex-col gap-4 p-4 sm:p-6">
+      <div className="mx-auto flex max-w-2xl flex-col gap-6 p-4 sm:p-6">
         {loading ? (
           <p className="text-sm text-muted-foreground">Loading…</p>
         ) : (
@@ -220,6 +224,36 @@ export default function Profile() {
                         value={heightCm}
                         onChange={(e) => setHeightCm(e.target.value)}
                       />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="flex flex-col gap-1.5">
+                      <Label htmlFor="age">Age</Label>
+                      <Input
+                        id="age"
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={age}
+                        onChange={(e) => setAge(e.target.value)}
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <Label htmlFor="gender">Gender</Label>
+                      <select
+                        id="gender"
+                        value={gender}
+                        onChange={(e) => setGender(e.target.value)}
+                        className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+                      >
+                        <option value="">Select…</option>
+                        {GENDER_OPTIONS.map((g) => (
+                          <option key={g} value={g}>
+                            {g}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                   </div>
 

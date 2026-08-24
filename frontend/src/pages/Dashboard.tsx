@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Apple, Dumbbell, LogOut, MessageCircle, Settings } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import {
@@ -11,13 +10,12 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { WorkoutCalendar } from '@/components/WorkoutCalendar'
-import { NavAvatar } from '@/components/NavAvatar'
+import { AppHeader } from '@/components/AppHeader'
 
 type Profile = {
   full_name: string
   weight_kg: number
   height_cm: number
-  avatar_url: string | null
 }
 
 type WorkoutPlan = {
@@ -45,6 +43,29 @@ type PlanExercise = {
   exercises: Exercise
 }
 
+const MOTIVATIONAL_LINES = [
+  'Discipline is choosing between what you want now and what you want most.',
+  'Small reps. Big transformation.',
+  "You don't have to be extreme, just consistent.",
+  "The only bad workout is the one that didn't happen.",
+  "Progress isn't loud. It's daily.",
+]
+
+function getGreeting(name: string) {
+  const hour = new Date().getHours()
+  if (hour >= 5 && hour < 12) return `Good morning, ${name}. Let's build something today.`
+  if (hour >= 12 && hour < 17) return `Good afternoon, ${name}. Halfway through — keep the momentum.`
+  if (hour >= 17 && hour < 21) return `Good evening, ${name}. Finish strong.`
+  return `Still here, ${name}? Respect the grind — or respect the rest.`
+}
+
+function toDateStr(d: Date) {
+  const year = d.getFullYear()
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 export default function Dashboard() {
   const navigate = useNavigate()
   const [profile, setProfile] = useState<Profile | null>(null)
@@ -52,8 +73,12 @@ export default function Dashboard() {
   const [selectedPlanId, setSelectedPlanId] = useState<string>('')
   const [planExercises, setPlanExercises] = useState<PlanExercise[]>([])
   const [loading, setLoading] = useState(true)
+  const [hasWorkoutToday, setHasWorkoutToday] = useState(false)
   const [starting, setStarting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [motivationalLine] = useState(
+    () => MOTIVATIONAL_LINES[Math.floor(Math.random() * MOTIVATIONAL_LINES.length)]
+  )
 
   useEffect(() => {
     async function load() {
@@ -62,21 +87,24 @@ export default function Dashboard() {
       } = await supabase.auth.getUser()
       if (!user) return
 
-      const [{ data: profileData }, { data: planData }] = await Promise.all([
-        supabase
-          .from('profiles')
-          .select('full_name, weight_kg, height_cm, avatar_url')
-          .eq('id', user.id)
-          .single(),
+      const [{ data: profileData }, { data: planData }, { data: todaySessions }] = await Promise.all([
+        supabase.from('profiles').select('full_name, weight_kg, height_cm').eq('id', user.id).single(),
         supabase
           .from('workout_plans')
           .select('id, name, type, sequence_order')
           .or(`user_id.is.null,user_id.eq.${user.id}`)
           .order('sequence_order', { nullsFirst: false }),
+        supabase
+          .from('workout_sessions')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('date', toDateStr(new Date()))
+          .limit(1),
       ])
 
       setProfile(profileData)
       setPlans(planData ?? [])
+      setHasWorkoutToday((todaySessions?.length ?? 0) > 0)
       if (planData && planData.length > 0) {
         setSelectedPlanId(planData[0].id)
       }
@@ -103,16 +131,12 @@ export default function Dashboard() {
     loadExercises()
   }, [selectedPlanId])
 
-  async function handleLogout() {
-    await supabase.auth.signOut()
-    navigate('/login')
-  }
-
   const selectedPlan = plans.find((p) => p.id === selectedPlanId)
   const nextUpPlan =
     selectedPlan?.sequence_order != null
       ? plans.find((p) => p.sequence_order === (selectedPlan.sequence_order! % 4) + 1)
       : null
+  const hasCustomPlans = plans.some((p) => p.sequence_order == null)
 
   async function handleStartWorkout() {
     setError(null)
@@ -126,7 +150,7 @@ export default function Dashboard() {
       return
     }
 
-    const today = new Date().toISOString().slice(0, 10)
+    const today = toDateStr(new Date())
 
     const { data: session, error: sessionError } = await supabase
       .from('workout_sessions')
@@ -192,39 +216,9 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-svh bg-background">
-      <nav className="flex items-center justify-between border-b border-border px-4 py-3 sm:px-6">
-        <span className="flex items-center gap-2 font-heading text-lg">
-          <Dumbbell className="size-5" />
-          Dashboard
-        </span>
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={() => navigate('/nutrition')}>
-            <Apple className="size-4" />
-            Nutrition
-          </Button>
-          <Button variant="ghost" size="sm" onClick={() => navigate('/health')}>
-            <MessageCircle className="size-4" />
-            Health
-          </Button>
-          <Button variant="ghost" size="icon-sm" onClick={() => navigate('/profile')} aria-label="Settings">
-            <Settings className="size-4" />
-          </Button>
-          <button
-            type="button"
-            onClick={() => navigate('/profile')}
-            aria-label="Profile"
-            className="rounded-full outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-          >
-            <NavAvatar avatarUrl={profile?.avatar_url ?? null} />
-          </button>
-          <Button variant="outline" size="sm" onClick={handleLogout}>
-            <LogOut className="size-4" />
-            Logout
-          </Button>
-        </div>
-      </nav>
+      <AppHeader />
 
-      <div className="mx-auto flex max-w-4xl flex-col gap-4 p-4 sm:p-6">
+      <div className="mx-auto flex max-w-4xl flex-col gap-6 p-4 sm:p-6">
         {loading ? (
           <p className="text-sm text-muted-foreground">Loading…</p>
         ) : (
@@ -233,10 +227,8 @@ export default function Dashboard() {
 
             <Card>
               <CardHeader>
-                <CardTitle>
-                  {profile ? `Welcome back, ${profile.full_name}` : 'Welcome'}
-                </CardTitle>
-                <CardDescription>Pick a plan and start today's workout.</CardDescription>
+                <CardTitle>{profile ? getGreeting(profile.full_name) : 'Welcome'}</CardTitle>
+                <CardDescription>{motivationalLine}</CardDescription>
               </CardHeader>
               <CardContent className="flex flex-col gap-3">
                 <div className="flex gap-2">
@@ -269,6 +261,23 @@ export default function Dashboard() {
                 </div>
                 {nextUpPlan && (
                   <p className="text-sm text-muted-foreground">Next up: {nextUpPlan.name}</p>
+                )}
+                {!hasWorkoutToday && (
+                  <p className="text-sm text-muted-foreground">
+                    Nothing logged yet today — your streak is waiting.
+                  </p>
+                )}
+                {!hasCustomPlans && (
+                  <p className="text-sm text-muted-foreground">
+                    Build a plan that's actually yours.{' '}
+                    <button
+                      type="button"
+                      onClick={() => navigate('/plans/new')}
+                      className="text-accent underline underline-offset-2"
+                    >
+                      Start here
+                    </button>
+                  </p>
                 )}
               </CardContent>
             </Card>

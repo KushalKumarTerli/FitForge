@@ -1,13 +1,11 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Apple, Dumbbell, LogOut, MessageCircle, Settings } from 'lucide-react'
 import ReactMarkdown, { type Components } from 'react-markdown'
 import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
-import { NavAvatar } from '@/components/NavAvatar'
+import { AppHeader } from '@/components/AppHeader'
 
 const markdownComponents: Components = {
   h1: ({ node, ...props }) => <h3 className="mt-3 mb-1 text-base font-semibold first:mt-0" {...props} />,
@@ -47,29 +45,17 @@ const TOPICS: { label: string; starter: string }[] = [
 ]
 
 export default function Health() {
-  const navigate = useNavigate()
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [loadingHistory, setLoadingHistory] = useState(true)
   const [draft, setDraft] = useState('')
   const [topic, setTopic] = useState<string | null>(null)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     loadHistory()
-    loadAvatar()
   }, [])
-
-  async function loadAvatar() {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-    if (!user) return
-    const { data } = await supabase.from('profiles').select('avatar_url').eq('id', user.id).single()
-    setAvatarUrl(data?.avatar_url ?? null)
-  }
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -160,44 +146,7 @@ export default function Health() {
 
   return (
     <div className="min-h-svh bg-background">
-      <nav className="flex items-center justify-between border-b border-border px-4 py-3 sm:px-6">
-        <span className="flex items-center gap-2 font-heading text-lg">
-          <MessageCircle className="size-5" />
-          Health
-        </span>
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={() => navigate('/')}>
-            <Dumbbell className="size-4" />
-            Dashboard
-          </Button>
-          <Button variant="ghost" size="sm" onClick={() => navigate('/nutrition')}>
-            <Apple className="size-4" />
-            Nutrition
-          </Button>
-          <Button variant="ghost" size="icon-sm" onClick={() => navigate('/profile')} aria-label="Settings">
-            <Settings className="size-4" />
-          </Button>
-          <button
-            type="button"
-            onClick={() => navigate('/profile')}
-            aria-label="Profile"
-            className="rounded-full outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-          >
-            <NavAvatar avatarUrl={avatarUrl} />
-          </button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={async () => {
-              await supabase.auth.signOut()
-              navigate('/login')
-            }}
-          >
-            <LogOut className="size-4" />
-            Logout
-          </Button>
-        </div>
-      </nav>
+      <AppHeader />
 
       <div className="mx-auto flex max-w-4xl flex-col gap-4 p-4 sm:p-6">
         <Card>

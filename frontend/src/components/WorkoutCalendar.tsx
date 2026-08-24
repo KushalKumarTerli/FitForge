@@ -141,16 +141,16 @@ export function WorkoutCalendar() {
                 <div
                   key={i}
                   className={cn(
-                    'relative flex aspect-square items-center justify-center rounded-lg text-sm',
-                    status === 'finished' && 'bg-primary/20 text-foreground ring-1 ring-primary/40 backdrop-blur-sm',
-                    status === 'partial' && 'bg-amber-500/20 text-foreground ring-1 ring-amber-500/40',
-                    status === 'none' && 'text-muted-foreground',
-                    isToday && 'outline outline-1 outline-offset-1 outline-ring'
+                    'relative flex aspect-square items-center justify-center rounded-lg text-sm backdrop-blur-sm',
+                    status === 'finished' && 'bg-[#22C55E]/30 text-foreground',
+                    status === 'partial' && 'bg-[#F59E0B]/30 text-foreground',
+                    status === 'none' && 'bg-transparent text-muted-foreground',
+                    isToday && 'ring-2 ring-[#22C55E] ring-offset-1 ring-offset-card'
                   )}
                 >
                   {day}
                   {status === 'finished' && (
-                    <Check className="absolute bottom-0.5 right-0.5 size-3 text-primary" />
+                    <Check className="absolute bottom-0.5 right-0.5 size-3 text-[#22C55E]" />
                   )}
                 </div>
               )

@@ -1,4 +1,5 @@
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { AnimatePresence, motion } from 'framer-motion'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import Signup from '@/pages/Signup'
 import Login from '@/pages/Login'
@@ -9,23 +10,40 @@ import Health from '@/pages/Health'
 import PlanBuilder from '@/pages/PlanBuilder'
 import Profile from '@/pages/Profile'
 
-function App() {
+function PageTransition({ children }: { children: React.ReactNode }) {
   return (
-    <Routes>
-      <Route path="/login" element={<Login />} />
-      <Route path="/signup" element={<Signup />} />
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.15 }}
+    >
+      {children}
+    </motion.div>
+  )
+}
 
-      <Route element={<ProtectedRoute />}>
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/workout" element={<Workout />} />
-        <Route path="/nutrition" element={<Nutrition />} />
-        <Route path="/health" element={<Health />} />
-        <Route path="/plans/new" element={<PlanBuilder />} />
-        <Route path="/profile" element={<Profile />} />
-      </Route>
+function App() {
+  const location = useLocation()
 
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+  return (
+    <AnimatePresence mode="wait">
+      <Routes location={location} key={location.pathname}>
+        <Route path="/login" element={<PageTransition><Login /></PageTransition>} />
+        <Route path="/signup" element={<PageTransition><Signup /></PageTransition>} />
+
+        <Route element={<ProtectedRoute />}>
+          <Route path="/" element={<PageTransition><Dashboard /></PageTransition>} />
+          <Route path="/workout" element={<PageTransition><Workout /></PageTransition>} />
+          <Route path="/nutrition" element={<PageTransition><Nutrition /></PageTransition>} />
+          <Route path="/health" element={<PageTransition><Health /></PageTransition>} />
+          <Route path="/plans/new" element={<PageTransition><PlanBuilder /></PageTransition>} />
+          <Route path="/profile" element={<PageTransition><Profile /></PageTransition>} />
+        </Route>
+
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </AnimatePresence>
   )
 }
 
