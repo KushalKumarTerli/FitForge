@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Apple, Dumbbell, LogOut } from 'lucide-react'
+import { Apple, Dumbbell, LogOut, MessageCircle } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -154,6 +154,10 @@ export default function Nutrition() {
           <Button variant="ghost" size="sm" onClick={() => navigate('/')}>
             <Dumbbell className="size-4" />
             Dashboard
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => navigate('/health')}>
+            <MessageCircle className="size-4" />
+            Health
           </Button>
           <Button
             variant="outline"

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Apple, Dumbbell, LogOut } from 'lucide-react'
+import { Apple, Dumbbell, LogOut, MessageCircle } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import {
@@ -188,6 +188,10 @@ export default function Dashboard() {
           <Button variant="ghost" size="sm" onClick={() => navigate('/nutrition')}>
             <Apple className="size-4" />
             Nutrition
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => navigate('/health')}>
+            <MessageCircle className="size-4" />
+            Health
           </Button>
           <Button variant="outline" size="sm" onClick={handleLogout}>
             <LogOut className="size-4" />
