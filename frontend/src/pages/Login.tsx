@@ -40,8 +40,9 @@ export default function Login() {
   }
 
   return (
-    <div className="flex min-h-svh items-center justify-center bg-background p-4 sm:p-6">
-      <Card className="w-full max-w-sm">
+    <div className="min-h-svh bg-background p-4 sm:p-6">
+      <div className="mx-auto flex min-h-[calc(100svh-2rem)] max-w-2xl items-center justify-center">
+        <Card className="w-full max-w-sm">
         <CardHeader>
           <CardTitle>Log in</CardTitle>
           <CardDescription>Welcome back.</CardDescription>
@@ -84,7 +85,8 @@ export default function Login() {
             </Link>
           </p>
         </CardContent>
-      </Card>
+        </Card>
+      </div>
     </div>
   )
 }

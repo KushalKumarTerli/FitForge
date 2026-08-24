@@ -189,7 +189,7 @@ export default function Workout() {
 
   if (!sessionId) {
     return (
-      <div className="p-4 sm:p-6">
+      <div className="mx-auto max-w-4xl p-4 sm:p-6">
         <Card>
           <CardHeader>
             <CardTitle>No active workout</CardTitle>
@@ -205,7 +205,7 @@ export default function Workout() {
 
   if (loading) {
     return (
-      <div className="p-4 sm:p-6">
+      <div className="mx-auto max-w-4xl p-4 sm:p-6">
         <p className="text-sm text-muted-foreground">Loading…</p>
       </div>
     )
@@ -213,7 +213,7 @@ export default function Workout() {
 
   if (summary) {
     return (
-      <div className="p-4 sm:p-6">
+      <div className="mx-auto max-w-4xl p-4 sm:p-6">
         <Card>
           <CardHeader>
             <CardTitle>Workout complete</CardTitle>
@@ -238,10 +238,12 @@ export default function Workout() {
   }
 
   return (
-    <div className="flex flex-col gap-4 p-4 sm:p-6">
+    <div className="mx-auto flex max-w-4xl flex-col gap-4 p-4 sm:p-6">
       <Card>
-        <CardHeader>
-          <CardTitle>{formatDuration(elapsedSeconds)}</CardTitle>
+        <CardHeader className="items-center text-center">
+          <CardTitle className="text-5xl tabular-nums sm:text-6xl">
+            {formatDuration(elapsedSeconds)}
+          </CardTitle>
           <CardDescription>
             {completedCount} / {allSets.length} sets completed
           </CardDescription>
@@ -269,14 +271,14 @@ export default function Workout() {
                     disabled={isCompleted}
                     onClick={() => completeSet(se.id, set.id)}
                     className={cn(
-                      'flex min-h-11 min-w-20 flex-col items-center justify-center gap-0.5 rounded-lg border px-3 py-2 text-sm transition-colors',
+                      'flex min-h-16 min-w-24 flex-col items-center justify-center gap-1 rounded-xl border-2 px-4 py-3 text-sm font-medium transition-colors',
                       isCompleted
-                        ? 'border-transparent bg-primary text-primary-foreground'
-                        : 'border-border bg-background hover:bg-muted'
+                        ? 'border-primary bg-primary text-primary-foreground shadow-sm'
+                        : 'border-border bg-muted/40 text-foreground hover:border-ring hover:bg-muted'
                     )}
                   >
-                    <span className="flex items-center gap-1 font-medium">
-                      {isCompleted && <Check className="size-3.5" />}
+                    <span className="flex items-center gap-1.5 font-semibold">
+                      {isCompleted && <Check className="size-4" />}
                       Set {set.set_number}
                     </span>
                     <span className={isCompleted ? 'text-primary-foreground/80' : 'text-muted-foreground'}>

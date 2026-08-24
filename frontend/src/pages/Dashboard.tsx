@@ -190,7 +190,7 @@ export default function Dashboard() {
         </div>
       </nav>
 
-      <div className="flex flex-col gap-4 p-4 sm:p-6">
+      <div className="mx-auto flex max-w-4xl flex-col gap-4 p-4 sm:p-6">
         {loading ? (
           <p className="text-sm text-muted-foreground">Loading…</p>
         ) : (
@@ -227,7 +227,7 @@ export default function Dashboard() {
                   <CardTitle>Exercises</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <ul className="flex flex-col gap-2">
+                  <ul className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                     {planExercises.map((pe) => (
                       <li
                         key={pe.exercise_id}

@@ -163,7 +163,7 @@ export default function Nutrition() {
         </div>
       </nav>
 
-      <div className="flex flex-col gap-4 p-4 sm:p-6">
+      <div className="mx-auto flex max-w-4xl flex-col gap-4 p-4 sm:p-6">
         <Card>
           <CardHeader>
             <CardTitle>Log a meal</CardTitle>
