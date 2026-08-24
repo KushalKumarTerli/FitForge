@@ -1,0 +1,26 @@
+import { Navigate, Route, Routes } from 'react-router-dom'
+import { ProtectedRoute } from '@/components/ProtectedRoute'
+import Signup from '@/pages/Signup'
+import Login from '@/pages/Login'
+import Dashboard from '@/pages/Dashboard'
+import Workout from '@/pages/Workout'
+import Nutrition from '@/pages/Nutrition'
+
+function App() {
+  return (
+    <Routes>
+      <Route path="/login" element={<Login />} />
+      <Route path="/signup" element={<Signup />} />
+
+      <Route element={<ProtectedRoute />}>
+        <Route path="/" element={<Dashboard />} />
+        <Route path="/workout" element={<Workout />} />
+        <Route path="/nutrition" element={<Nutrition />} />
+      </Route>
+
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  )
+}
+
+export default App
