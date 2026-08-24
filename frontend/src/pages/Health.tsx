@@ -1,12 +1,27 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Apple, Dumbbell, LogOut, MessageCircle, Settings } from 'lucide-react'
+import ReactMarkdown, { type Components } from 'react-markdown'
 import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 import { NavAvatar } from '@/components/NavAvatar'
+
+const markdownComponents: Components = {
+  h1: ({ node, ...props }) => <h3 className="mt-3 mb-1 text-base font-semibold first:mt-0" {...props} />,
+  h2: ({ node, ...props }) => <h3 className="mt-3 mb-1 text-base font-semibold first:mt-0" {...props} />,
+  h3: ({ node, ...props }) => <h3 className="mt-3 mb-1 text-sm font-semibold first:mt-0" {...props} />,
+  p: ({ node, ...props }) => <p className="mb-2 last:mb-0" {...props} />,
+  ul: ({ node, ...props }) => <ul className="mb-2 list-disc space-y-1 pl-5 last:mb-0" {...props} />,
+  ol: ({ node, ...props }) => <ol className="mb-2 list-decimal space-y-1 pl-5 last:mb-0" {...props} />,
+  li: ({ node, ...props }) => <li {...props} />,
+  strong: ({ node, ...props }) => <strong className="font-semibold" {...props} />,
+  a: ({ node, ...props }) => (
+    <a className="underline underline-offset-2" target="_blank" rel="noreferrer" {...props} />
+  ),
+}
 
 type ChatMessage = {
   id: string
@@ -58,7 +73,7 @@ export default function Health() {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+  }, [messages, sending])
 
   async function loadHistory() {
     setLoadingHistory(true)
@@ -225,18 +240,26 @@ export default function Health() {
                     key={m.id}
                     className={cn('flex', m.role === 'user' ? 'justify-end' : 'justify-start')}
                   >
-                    <div
-                      className={cn(
-                        'max-w-[85%] rounded-xl px-3 py-2 text-sm whitespace-pre-wrap',
-                        m.role === 'user'
-                          ? 'bg-primary text-primary-foreground'
-                          : 'bg-muted text-foreground'
-                      )}
-                    >
-                      {m.content}
-                    </div>
+                    {m.role === 'user' ? (
+                      <div className="max-w-[85%] rounded-xl bg-primary px-3 py-2 text-sm whitespace-pre-wrap text-primary-foreground">
+                        {m.content}
+                      </div>
+                    ) : (
+                      <div className="max-w-[95%] text-sm text-foreground">
+                        <ReactMarkdown components={markdownComponents}>{m.content}</ReactMarkdown>
+                      </div>
+                    )}
                   </div>
                 ))
+              )}
+              {sending && (
+                <div className="flex justify-start">
+                  <div className="flex items-center gap-1 px-1 py-2">
+                    <span className="size-2 animate-pulse rounded-full bg-muted-foreground [animation-delay:0ms]" />
+                    <span className="size-2 animate-pulse rounded-full bg-muted-foreground [animation-delay:150ms]" />
+                    <span className="size-2 animate-pulse rounded-full bg-muted-foreground [animation-delay:300ms]" />
+                  </div>
+                </div>
               )}
               <div ref={bottomRef} />
             </div>
