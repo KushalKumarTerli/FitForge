@@ -24,7 +24,7 @@ type WorkoutPlan = {
   id: string
   name: string
   type: string
-  sequence_order: number
+  sequence_order: number | null
 }
 
 type Exercise = {
@@ -107,6 +107,12 @@ export default function Dashboard() {
     await supabase.auth.signOut()
     navigate('/login')
   }
+
+  const selectedPlan = plans.find((p) => p.id === selectedPlanId)
+  const nextUpPlan =
+    selectedPlan?.sequence_order != null
+      ? plans.find((p) => p.sequence_order === (selectedPlan.sequence_order! % 4) + 1)
+      : null
 
   async function handleStartWorkout() {
     setError(null)
@@ -261,6 +267,9 @@ export default function Dashboard() {
                     Create Plan
                   </Button>
                 </div>
+                {nextUpPlan && (
+                  <p className="text-sm text-muted-foreground">Next up: {nextUpPlan.name}</p>
+                )}
               </CardContent>
             </Card>
 
