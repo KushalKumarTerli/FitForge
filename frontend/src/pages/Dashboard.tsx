@@ -65,8 +65,8 @@ export default function Dashboard() {
         supabase
           .from('workout_plans')
           .select('id, name, type, sequence_order')
-          .is('user_id', null)
-          .order('sequence_order'),
+          .or(`user_id.is.null,user_id.eq.${user.id}`)
+          .order('sequence_order', { nullsFirst: false }),
       ])
 
       setProfile(profileData)
@@ -215,22 +215,35 @@ export default function Dashboard() {
                 </CardTitle>
                 <CardDescription>Pick a plan and start today's workout.</CardDescription>
               </CardHeader>
-              <CardContent>
-                {plans.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No workout plans available.</p>
-                ) : (
-                  <select
-                    value={selectedPlanId}
-                    onChange={(e) => setSelectedPlanId(e.target.value)}
-                    className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+              <CardContent className="flex flex-col gap-3">
+                <div className="flex gap-2">
+                  {plans.length === 0 ? (
+                    <p className="flex-1 self-center text-sm text-muted-foreground">
+                      No workout plans available.
+                    </p>
+                  ) : (
+                    <select
+                      value={selectedPlanId}
+                      onChange={(e) => setSelectedPlanId(e.target.value)}
+                      className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+                    >
+                      {plans.map((plan) => (
+                        <option key={plan.id} value={plan.id}>
+                          {plan.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="shrink-0"
+                    onClick={() => navigate('/plans/new')}
                   >
-                    {plans.map((plan) => (
-                      <option key={plan.id} value={plan.id}>
-                        {plan.name}
-                      </option>
-                    ))}
-                  </select>
-                )}
+                    Create Plan
+                  </Button>
+                </div>
               </CardContent>
             </Card>
 

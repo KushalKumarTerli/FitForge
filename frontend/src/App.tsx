@@ -6,6 +6,7 @@ import Dashboard from '@/pages/Dashboard'
 import Workout from '@/pages/Workout'
 import Nutrition from '@/pages/Nutrition'
 import Health from '@/pages/Health'
+import PlanBuilder from '@/pages/PlanBuilder'
 
 function App() {
   return (
@@ -18,6 +19,7 @@ function App() {
         <Route path="/workout" element={<Workout />} />
         <Route path="/nutrition" element={<Nutrition />} />
         <Route path="/health" element={<Health />} />
+        <Route path="/plans/new" element={<PlanBuilder />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />
