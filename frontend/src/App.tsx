@@ -7,6 +7,7 @@ import Workout from '@/pages/Workout'
 import Nutrition from '@/pages/Nutrition'
 import Health from '@/pages/Health'
 import PlanBuilder from '@/pages/PlanBuilder'
+import Profile from '@/pages/Profile'
 
 function App() {
   return (
@@ -20,6 +21,7 @@ function App() {
         <Route path="/nutrition" element={<Nutrition />} />
         <Route path="/health" element={<Health />} />
         <Route path="/plans/new" element={<PlanBuilder />} />
+        <Route path="/profile" element={<Profile />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Apple, Dumbbell, LogOut, MessageCircle } from 'lucide-react'
+import { Apple, Dumbbell, LogOut, MessageCircle, Settings } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import {
@@ -11,11 +11,13 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { WorkoutCalendar } from '@/components/WorkoutCalendar'
+import { NavAvatar } from '@/components/NavAvatar'
 
 type Profile = {
   full_name: string
   weight_kg: number
   height_cm: number
+  avatar_url: string | null
 }
 
 type WorkoutPlan = {
@@ -61,7 +63,11 @@ export default function Dashboard() {
       if (!user) return
 
       const [{ data: profileData }, { data: planData }] = await Promise.all([
-        supabase.from('profiles').select('full_name, weight_kg, height_cm').eq('id', user.id).single(),
+        supabase
+          .from('profiles')
+          .select('full_name, weight_kg, height_cm, avatar_url')
+          .eq('id', user.id)
+          .single(),
         supabase
           .from('workout_plans')
           .select('id, name, type, sequence_order')
@@ -194,6 +200,17 @@ export default function Dashboard() {
             <MessageCircle className="size-4" />
             Health
           </Button>
+          <Button variant="ghost" size="icon-sm" onClick={() => navigate('/profile')} aria-label="Settings">
+            <Settings className="size-4" />
+          </Button>
+          <button
+            type="button"
+            onClick={() => navigate('/profile')}
+            aria-label="Profile"
+            className="rounded-full outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+          >
+            <NavAvatar avatarUrl={profile?.avatar_url ?? null} />
+          </button>
           <Button variant="outline" size="sm" onClick={handleLogout}>
             <LogOut className="size-4" />
             Logout

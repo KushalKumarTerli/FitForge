@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Apple, Dumbbell, LogOut, MessageCircle } from 'lucide-react'
+import { Apple, Dumbbell, LogOut, MessageCircle, Settings } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
+import { NavAvatar } from '@/components/NavAvatar'
 
 type ChatMessage = {
   id: string
@@ -38,11 +39,22 @@ export default function Health() {
   const [topic, setTopic] = useState<string | null>(null)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     loadHistory()
+    loadAvatar()
   }, [])
+
+  async function loadAvatar() {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) return
+    const { data } = await supabase.from('profiles').select('avatar_url').eq('id', user.id).single()
+    setAvatarUrl(data?.avatar_url ?? null)
+  }
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -147,6 +159,17 @@ export default function Health() {
             <Apple className="size-4" />
             Nutrition
           </Button>
+          <Button variant="ghost" size="icon-sm" onClick={() => navigate('/profile')} aria-label="Settings">
+            <Settings className="size-4" />
+          </Button>
+          <button
+            type="button"
+            onClick={() => navigate('/profile')}
+            aria-label="Profile"
+            className="rounded-full outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+          >
+            <NavAvatar avatarUrl={avatarUrl} />
+          </button>
           <Button
             variant="outline"
             size="sm"
