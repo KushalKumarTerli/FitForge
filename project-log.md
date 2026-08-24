@@ -125,8 +125,101 @@ When a system plan is selected, a small subtitle shows the next plan in the sequ
 custom plans, since they have no `sequence_order`. Verified across all 4 system plans
 including the 4→1 wrap.
 
-## Known open items
+## Known open items (as of the build pass above)
 
 - Avatar upload blocked on the Storage RLS policy (section 5, above).
 - No `CLAUDE.md` in the repo — this log leans on `fitforge-sdlc-roadmap_1.md` and this
   session's own direct verification instead.
+
+---
+
+# Follow-up: Health chat UI fix
+
+Separate small pass after the above: the Health chat was rendering assistant replies as
+literal markdown text (`###`, `**`) instead of formatted output. Installed `react-markdown`
+and rendered assistant messages through it with styled component overrides (headings, bold,
+lists); restyled the thread to an actual chat layout — user messages stay right-aligned in a
+primary bubble, assistant messages are left-aligned with no bubble (matches ChatGPT, which
+doesn't bubble its own replies); added a three-dot pulsing typing indicator while `/api/chat`
+is in flight. UI-only, no backend changes. `tsc -b` and `npm run build` both clean; verified
+live with a real backend round-trip (list/bold/heading elements present, zero literal `#`/`**`
+in the DOM, dots present only while waiting).
+
+---
+
+# Follow-up: Full frontend polish pass
+
+Brand assets, a shared header, motion, calendar bug fix, new profile fields, and content to
+fill previously-empty states. Checked current state before acting on each item per the brief
+("verify live rather than redoing it") — nothing in this pass was already done.
+
+**Brand assets.** `public/logo.png` (wordmark) and `public/favicon.png` replace the old
+placeholder `favicon.svg`; page title is now "FitForge — Build. Train. Transform."
+
+**Shared `AppHeader`.** One component now rendered identically on Dashboard, Workout,
+Nutrition, Health, and Profile (Profile had no header at all before this pass — the other
+four each had their own near-duplicate inline `<nav>`, now deleted). Logo left; nav links
+(Dashboard/Nutrition/Health) + a streak badge (shown only if a session exists today or
+yesterday — a cheap presence check, not the full backward-walk streak count Dashboard's
+calendar computes) + a single avatar dropdown (base-ui `Menu`) holding Profile/Logout, right.
+The previously-separate settings-gear icon is gone — the avatar dropdown is now the one entry
+point to account info, per spec. Note: on the narrowest mobile width the streak badge and nav
+labels collapse to icon-only to keep the header from crowding — not explicitly specified,
+a judgment call for space.
+
+**Calendar bug fix (not a redesign).** The bug: today's status ring (amber/green, via
+`ring`/box-shadow) and the "today" indicator (via CSS `outline`) were two box-shadow-adjacent
+layers at the same edge, visually blending into a muddy brown/olive. Fixed by making status a
+plain background fill (`bg-[#22C55E]/30`, `bg-[#F59E0B]/30`, transparent for none — literal
+locked hex values, not the `--primary` token) and today's indicator a `ring-2 ring-[#22C55E]`
+with an offset gap, so the two never occupy the same pixels. Verified against a fresh
+zero-data account: today's cell renders as a clean transparent-fill ring with nothing to
+blend into.
+
+**Workout page.** Added a `framer-motion` radial progress ring (sets-completed/total) beside
+the timer, animating its arc smoothly on change rather than jumping. Per-set tap targets are
+unchanged in structure and interaction (still per-set, not exercise-level, as instructed) but
+the checkmark now scale-in animates on completion via `framer-motion`.
+
+**Motion, more broadly.** Installed `framer-motion`. Used for: the radial ring, the set
+checkmark scale-in, and ~150ms fade page transitions (`AnimatePresence` + a `PageTransition`
+wrapper around each route's element in `App.tsx`). **Deviation:** button hover/tap was
+supposed to use `framer-motion` too (`motion.create(ButtonPrimitive)`), but this surfaced
+real type conflicts between base-ui's `Button` primitive and framer-motion's `Motion` types —
+`onAnimationStart`/`onDragStart` have incompatible signatures, and `style` accepts a render-prop
+function in base-ui that `MotionStyle` doesn't allow. Rather than keep suppressing conflicts
+with `Omit<>`, reverted to a plain CSS `hover:scale-[1.02] active:scale-[0.97]` transform,
+which composes cleanly with the existing active-state translate and is arguably the more
+idiomatic tool for a simple hover scale regardless. Page transitions were verified indirectly
+(every navigation in every test — dozens, across this pass — landed on the correct page with
+no console errors) rather than independently screenshot-verified, since a 150ms fade is not
+reliably capturable in a single screenshot.
+
+**Dashboard content.** Time-of-day-aware greeting (morning/afternoon/evening/night copy per
+spec) and one of five motivational lines picked at random per page load. Three empty states
+replaced bare "No data" text: no workout logged today, no meals logged, no custom plans (with
+a link to `/plans/new`). All three, plus the greeting and the transparent calendar cell, were
+verified together against a single fresh zero-data account.
+
+**Profile page.** Added `age` (number) and `gender` (select: Male/Female/Other/Prefer not to
+say) against the existing `profiles.age`/`profiles.gender` columns — confirmed these columns
+already existed (a `select` returning `[]` with no error, the same "column exists but anon
+can't see rows" signal from earlier in this project, rather than the 400 "column does not
+exist" a typo would produce). Verified the values round-trip through a save + hard reload.
+
+**Explicitly not added**, per the brief: no fabricated metrics (sleep, hydration, VO2 max,
+heart rate zones), no subscription/paywall UI, no non-functional search bar.
+
+**Verification.** `tsc -b` and `npm run build` both clean. Verified live on Vercel at both
+375px and 1440px across Dashboard, Nutrition, Health, and Profile — plus targeted live checks
+for the avatar dropdown menu, the Workout radial ring/checkmark animation, age/gender
+persistence, all three empty states on a fresh account, and the Signup page (only Login had
+been exercised repeatedly elsewhere in this pass's testing, so Signup's own form flow with the
+new page-transition wrapper got a dedicated check). No console errors in any run.
+
+**Known open items after this pass:**
+- Avatar upload is still blocked on the Storage RLS policy from before (unrelated to this
+  pass; not touched here).
+- Button hover uses CSS, not `framer-motion`, for the reason above.
+- The page-transition fade's *visual* effect wasn't independently screenshot-verified (only
+  its absence of side effects was, extensively).
