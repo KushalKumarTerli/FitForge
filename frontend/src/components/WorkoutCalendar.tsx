@@ -1,20 +1,19 @@
 import { useEffect, useState } from 'react'
-import { Check } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
+import { toDateStr } from '@/lib/date'
 
 type DayStatus = 'none' | 'partial' | 'finished'
 
 const WEEKDAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
 
-function toDateStr(d: Date) {
-  const year = d.getFullYear()
-  const month = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
+const LEGEND: { status: DayStatus; label: string }[] = [
+  { status: 'finished', label: 'Completed' },
+  { status: 'partial', label: 'Partial' },
+  { status: 'none', label: 'No Activity' },
+]
 
 function getMonthCells(year: number, month: number) {
   const firstOfMonth = new Date(year, month, 1)
@@ -28,7 +27,6 @@ function getMonthCells(year: number, month: number) {
 
 export function WorkoutCalendar() {
   const [statusByDate, setStatusByDate] = useState<Record<string, DayStatus>>({})
-  const [streak, setStreak] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -56,24 +54,18 @@ export function WorkoutCalendar() {
     const monthStart = toDateStr(new Date(year, month, 1))
     const monthEnd = toDateStr(new Date(year, month + 1, 1))
 
-    const [monthResult, allResult] = await Promise.all([
-      supabase
-        .from('workout_sessions')
-        .select('id, date, session_exercises(id, session_sets(id, status))')
-        .eq('user_id', user.id)
-        .gte('date', monthStart)
-        .lt('date', monthEnd),
-      supabase.from('workout_sessions').select('date').eq('user_id', user.id),
-    ])
+    const { data: monthSessions, error: monthError } = await supabase
+      .from('workout_sessions')
+      .select('id, date, session_exercises(id, session_sets(id, status))')
+      .eq('user_id', user.id)
+      .gte('date', monthStart)
+      .lt('date', monthEnd)
 
-    if (monthResult.error || allResult.error) {
+    if (monthError) {
       setError('Could not load calendar data.')
       setLoading(false)
       return
     }
-
-    const monthSessions = monthResult.data
-    const allSessions = allResult.data
 
     const setsByDate: Record<string, { status: string }[]> = {}
     for (const session of monthSessions ?? []) {
@@ -89,30 +81,34 @@ export function WorkoutCalendar() {
       byDate[date] = sets.length > 0 && sets.every((s) => s.status === 'completed') ? 'finished' : 'partial'
     }
 
-    const sessionDates = new Set((allSessions ?? []).map((s) => s.date))
-    let streakCount = 0
-    const cursor = new Date()
-    cursor.setHours(0, 0, 0, 0)
-    while (sessionDates.has(toDateStr(cursor))) {
-      streakCount++
-      cursor.setDate(cursor.getDate() - 1)
-    }
-
     setStatusByDate(byDate)
-    setStreak(streakCount)
     setLoading(false)
   }
 
   const cells = getMonthCells(year, month)
   const monthLabel = now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
-  const todayStr = toDateStr(now)
+  const todayStr = toDateStr(new Date())
 
   return (
-    <Card>
+    <Card size="sm">
       <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle className="font-heading text-lg">{monthLabel}</CardTitle>
-          {!error && <span className="text-xs font-medium">🔥 {streak} day streak</span>}
+        <div className="flex items-center justify-between gap-2">
+          <CardTitle className="font-heading text-sm">{monthLabel}</CardTitle>
+          <div className="flex items-center gap-2.5">
+            {LEGEND.map((item) => (
+              <span key={item.status} className="flex items-center gap-1 text-[0.65rem] text-muted-foreground">
+                <span
+                  className={cn(
+                    'size-1.5 rounded-full',
+                    item.status === 'finished' && 'bg-[#22C55E]',
+                    item.status === 'partial' && 'bg-[#F59E0B]',
+                    item.status === 'none' && 'bg-muted-foreground/40'
+                  )}
+                />
+                {item.label}
+              </span>
+            ))}
+          </div>
         </div>
       </CardHeader>
       <CardContent>
@@ -126,9 +122,9 @@ export function WorkoutCalendar() {
             </Button>
           </div>
         ) : (
-          <div className="mx-auto grid max-w-xl grid-cols-7 gap-1">
+          <div className="mx-auto grid max-w-xs grid-cols-7 gap-1">
             {WEEKDAY_LABELS.map((label, i) => (
-              <div key={i} className="pb-0.5 text-center text-[0.65rem] font-medium text-muted-foreground">
+              <div key={i} className="pb-0.5 text-center text-[0.6rem] font-medium text-muted-foreground">
                 {label}
               </div>
             ))}
@@ -138,20 +134,23 @@ export function WorkoutCalendar() {
               const status = statusByDate[dateStr] ?? 'none'
               const isToday = dateStr === todayStr
               return (
-                <div
-                  key={i}
-                  className={cn(
-                    'relative flex aspect-square items-center justify-center rounded-lg text-sm font-medium',
-                    status === 'finished' && 'bg-[#22C55E] text-[#F3F4F6]',
-                    status === 'partial' && 'bg-[#F59E0B] text-[#111827]',
-                    status === 'none' && 'bg-transparent text-muted-foreground',
-                    isToday && 'ring-2 ring-[#22C55E] ring-offset-1 ring-offset-card'
-                  )}
-                >
-                  {day}
-                  {status === 'finished' && (
-                    <Check className="absolute bottom-0.5 right-0.5 size-3 text-[#F3F4F6]" />
-                  )}
+                <div key={i} className="flex flex-col items-center gap-0.5 py-0.5">
+                  <span
+                    className={cn(
+                      'flex size-5 items-center justify-center rounded-full text-[0.65rem] text-foreground',
+                      isToday && 'ring-2 ring-[#22C55E] ring-offset-1 ring-offset-card'
+                    )}
+                  >
+                    {day}
+                  </span>
+                  <span
+                    className={cn(
+                      'size-1.5 rounded-full',
+                      status === 'finished' && 'bg-[#22C55E]',
+                      status === 'partial' && 'bg-[#F59E0B]',
+                      status === 'none' && 'bg-muted-foreground/30'
+                    )}
+                  />
                 </div>
               )
             })}

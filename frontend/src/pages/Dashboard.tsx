@@ -10,8 +10,12 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { WorkoutCalendar } from '@/components/WorkoutCalendar'
-import { WeekStats } from '@/components/WeekStats'
+import { DashboardStats } from '@/components/DashboardStats'
+import { WeeklySchedule } from '@/components/WeeklySchedule'
+import { NutritionTargets } from '@/components/NutritionTargets'
+import { QuickLog } from '@/components/QuickLog'
 import { AppHeader } from '@/components/AppHeader'
+import { toDateStr } from '@/lib/date'
 
 type Profile = {
   full_name: string
@@ -60,13 +64,6 @@ function getGreeting(name: string) {
   return `Still here, ${name}? Respect the grind — or respect the rest.`
 }
 
-function toDateStr(d: Date) {
-  const year = d.getFullYear()
-  const month = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
 export default function Dashboard() {
   const navigate = useNavigate()
   const [profile, setProfile] = useState<Profile | null>(null)
@@ -75,11 +72,13 @@ export default function Dashboard() {
   const [planExercises, setPlanExercises] = useState<PlanExercise[]>([])
   const [loading, setLoading] = useState(true)
   const [hasWorkoutToday, setHasWorkoutToday] = useState(false)
+  const [isRestDay, setIsRestDay] = useState(false)
   const [starting, setStarting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [motivationalLine] = useState(
     () => MOTIVATIONAL_LINES[Math.floor(Math.random() * MOTIVATIONAL_LINES.length)]
   )
+  const [nutritionRefreshKey, setNutritionRefreshKey] = useState(0)
 
   useEffect(() => {
     async function load() {
@@ -88,26 +87,47 @@ export default function Dashboard() {
       } = await supabase.auth.getUser()
       if (!user) return
 
-      const [{ data: profileData }, { data: planData }, { data: todaySessions }] = await Promise.all([
-        supabase.from('profiles').select('full_name, weight_kg, height_cm').eq('id', user.id).single(),
-        supabase
-          .from('workout_plans')
-          .select('id, name, type, sequence_order')
-          .or(`user_id.is.null,user_id.eq.${user.id}`)
-          .order('sequence_order', { nullsFirst: false }),
-        supabase
-          .from('workout_sessions')
-          .select('id')
-          .eq('user_id', user.id)
-          .eq('date', toDateStr(new Date()))
-          .limit(1),
-      ])
+      const todayDow = new Date().getDay()
+
+      const [{ data: profileData }, { data: planData }, { data: todaySessions }, { data: scheduleRow }] =
+        await Promise.all([
+          supabase.from('profiles').select('full_name, weight_kg, height_cm').eq('id', user.id).single(),
+          supabase
+            .from('workout_plans')
+            .select('id, name, type, sequence_order')
+            .or(`user_id.is.null,user_id.eq.${user.id}`)
+            .order('sequence_order', { nullsFirst: false }),
+          supabase
+            .from('workout_sessions')
+            .select('id')
+            .eq('user_id', user.id)
+            .eq('date', toDateStr(new Date()))
+            .limit(1),
+          supabase
+            .from('weekly_schedule')
+            .select('plan_id')
+            .eq('user_id', user.id)
+            .eq('day_of_week', todayDow)
+            .maybeSingle(),
+        ])
 
       setProfile(profileData)
       setPlans(planData ?? [])
       setHasWorkoutToday((todaySessions?.length ?? 0) > 0)
-      if (planData && planData.length > 0) {
-        setSelectedPlanId(planData[0].id)
+
+      // Default plan selection, in priority order:
+      // a) today's weekly_schedule row has a plan_id -> default to it
+      // b) today's weekly_schedule row exists but plan_id is null -> rest day;
+      //    fall back to the existing "first plan" default so Start Workout still works
+      // c) no weekly_schedule row at all -> existing default, unchanged
+      if (scheduleRow?.plan_id) {
+        setIsRestDay(false)
+        setSelectedPlanId(scheduleRow.plan_id)
+      } else {
+        setIsRestDay(scheduleRow !== null)
+        if (planData && planData.length > 0) {
+          setSelectedPlanId(planData[0].id)
+        }
       }
       setLoading(false)
     }
@@ -224,7 +244,8 @@ export default function Dashboard() {
           <p className="text-sm text-muted-foreground">Loading…</p>
         ) : (
           <>
-            <WeekStats />
+            <DashboardStats />
+            <WeeklySchedule />
             <WorkoutCalendar />
 
             <Card>
@@ -233,6 +254,9 @@ export default function Dashboard() {
                 <CardDescription>{motivationalLine}</CardDescription>
               </CardHeader>
               <CardContent className="flex flex-col gap-3">
+                {isRestDay && (
+                  <p className="text-sm text-accent">Rest day — start a workout anyway if you want.</p>
+                )}
                 <div className="flex gap-2">
                   {plans.length === 0 ? (
                     <p className="flex-1 self-center text-sm text-muted-foreground">
@@ -324,6 +348,9 @@ export default function Dashboard() {
                 </CardContent>
               </Card>
             )}
+
+            <NutritionTargets refreshKey={nutritionRefreshKey} />
+            <QuickLog onMealLogged={() => setNutritionRefreshKey((k) => k + 1)} />
           </>
         )}
       </div>

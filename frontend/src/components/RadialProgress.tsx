@@ -22,7 +22,7 @@ export function RadialProgress({
         fill="none"
         stroke="currentColor"
         strokeWidth={strokeWidth}
-        className="text-muted"
+        className="text-border"
       />
       <motion.circle
         cx={size / 2}
