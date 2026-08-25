@@ -3,12 +3,20 @@ import { Activity, Clock, Flame, TrendingDown, TrendingUp, Trophy } from 'lucide
 import { supabase } from '@/lib/supabase'
 import { Card, CardContent } from '@/components/ui/card'
 import { toDateStr, startOfWeekMonday } from '@/lib/date'
+import { MAX_REASONABLE_SESSION_SECONDS } from '@/lib/workout'
 import { cn } from '@/lib/utils'
 
 type SessionTotals = { total_calories: number | null; total_duration_seconds: number | null }
 
+// Sessions with an absurd duration (a tab left open without pausing, from before that was
+// fixed, or simply old bad data still sitting in the table) drag both the shown totals and
+// the vs-yesterday percentage into nonsense — exclude them rather than display them.
+function isTrustworthy(row: SessionTotals) {
+  return (row.total_duration_seconds ?? 0) <= MAX_REASONABLE_SESSION_SECONDS
+}
+
 function sumTotals(rows: SessionTotals[] | null) {
-  return (rows ?? []).reduce(
+  return (rows ?? []).filter(isTrustworthy).reduce(
     (acc, r) => ({
       calories: acc.calories + (r.total_calories ?? 0),
       duration: acc.duration + (r.total_duration_seconds ?? 0),
@@ -88,10 +96,14 @@ export function DashboardStats() {
     setTodayCalories(todayTotals.calories)
     setTodayDuration(todayTotals.duration)
 
-    // Only compare against yesterday if yesterday actually has a finished session
-    // (total_calories is only ever set on Finish Workout) — otherwise the
-    // "vs yesterday" line would be comparing against a meaningless zero.
-    const hasFinishedYesterday = (yesterdaySessions ?? []).some((s) => s.total_calories != null)
+    // Only compare against yesterday if yesterday actually has a trustworthy finished session
+    // AND today isn't hiding an untrustworthy one behind a filtered-down "0" — otherwise the
+    // "vs yesterday" line would be comparing against a meaningless zero, or against a bad/
+    // absurd stored value (e.g. a session that ran for days because a tab was left open).
+    const todayHasUntrustworthySession = (todaySessions ?? []).some((s) => !isTrustworthy(s))
+    const hasFinishedYesterday =
+      !todayHasUntrustworthySession &&
+      (yesterdaySessions ?? []).filter(isTrustworthy).some((s) => s.total_calories != null)
     if (hasFinishedYesterday) {
       const yTotals = sumTotals(yesterdaySessions)
       setYesterdayCalories(yTotals.calories)

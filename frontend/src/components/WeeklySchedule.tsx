@@ -108,7 +108,7 @@ export function WeeklySchedule() {
                   </Menu.Trigger>
                   <Menu.Portal>
                     <Menu.Positioner sideOffset={6} className="z-50">
-                      <Menu.Popup className="max-h-64 min-w-36 overflow-auto rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-lg outline-none">
+                      <Menu.Popup className="max-h-[240px] min-w-36 overflow-y-auto rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-lg outline-none">
                         <Menu.Item
                           onClick={() => assignPlan(dow, null)}
                           className="cursor-pointer rounded-md px-3 py-2 text-sm outline-none data-[highlighted]:bg-muted"

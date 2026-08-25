@@ -15,6 +15,7 @@ import {
 import { cn } from '@/lib/utils'
 import { AppHeader } from '@/components/AppHeader'
 import { RadialProgress } from '@/components/RadialProgress'
+import { MAX_REASONABLE_SESSION_SECONDS } from '@/lib/workout'
 
 type SessionRow = {
   id: string
@@ -150,14 +151,36 @@ export default function Workout() {
     return () => clearInterval(interval)
   }, [runningSince, summary])
 
+  // Folds any running time into accumulatedMs and stops the clock. Uses functional state
+  // updates (not the closed-over `runningSince`) so it stays correct when called from the
+  // visibility listener below, which subscribes once and must not read a stale value.
+  function pauseTimer() {
+    setRunningSince((prev) => {
+      if (prev != null) {
+        const elapsed = Date.now() - prev
+        setAccumulatedMs((acc) => acc + elapsed)
+      }
+      return null
+    })
+  }
+
+  // Auto-pause when the tab is hidden or closed, so leaving the app running doesn't inflate
+  // the session's duration/calories.
+  useEffect(() => {
+    function handleVisibilityChange() {
+      if (document.hidden) pauseTimer()
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+  }, [])
+
   const displayMs = accumulatedMs + (runningSince ? Date.now() - runningSince : 0)
   const displaySeconds = Math.floor(displayMs / 1000)
   const isPaused = runningSince === null
 
   function handlePauseResume() {
     if (runningSince) {
-      setAccumulatedMs((prev) => prev + (Date.now() - runningSince))
-      setRunningSince(null)
+      pauseTimer()
     } else {
       setRunningSince(Date.now())
     }
@@ -216,7 +239,13 @@ export default function Workout() {
 
     const completedAt = new Date()
     const finalMs = accumulatedMs + (runningSince ? Date.now() - runningSince : 0)
-    const durationSeconds = Math.max(0, Math.floor(finalMs / 1000))
+    let durationSeconds = Math.max(0, Math.floor(finalMs / 1000))
+    if (durationSeconds > MAX_REASONABLE_SESSION_SECONDS) {
+      console.warn(
+        `Workout duration ${durationSeconds}s exceeds the ${MAX_REASONABLE_SESSION_SECONDS}s sanity cap — capping the stored value. (Likely a tab left open without pausing.)`
+      )
+      durationSeconds = MAX_REASONABLE_SESSION_SECONDS
+    }
     const durationHours = durationSeconds / 3600
     const numExercises = exercises.length || 1
 
