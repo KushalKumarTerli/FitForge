@@ -247,9 +247,11 @@ export default function Profile() {
                         onChange={(e) => setGender(e.target.value)}
                         className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
                       >
-                        <option value="">Select…</option>
+                        <option value="" className="bg-card text-foreground">
+                          Select…
+                        </option>
                         {GENDER_OPTIONS.map((g) => (
-                          <option key={g} value={g}>
+                          <option key={g} value={g} className="bg-card text-foreground">
                             {g}
                           </option>
                         ))}

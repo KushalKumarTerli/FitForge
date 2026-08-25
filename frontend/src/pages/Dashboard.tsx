@@ -245,7 +245,7 @@ export default function Dashboard() {
                       className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
                     >
                       {plans.map((plan) => (
-                        <option key={plan.id} value={plan.id}>
+                        <option key={plan.id} value={plan.id} className="bg-card text-foreground">
                           {plan.name}
                         </option>
                       ))}
