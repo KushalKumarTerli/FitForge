@@ -223,3 +223,44 @@ new page-transition wrapper got a dedicated check). No console errors in any run
 - Button hover uses CSS, not `framer-motion`, for the reason above.
 - The page-transition fade's *visual* effect wasn't independently screenshot-verified (only
   its absence of side effects was, extensively).
+
+---
+
+# Follow-up: calendar real fix, Dashboard/Nutrition content, avatar re-check
+
+The previous pass's calendar "fix" was verified by screenshot but not by computed style, and
+it turned out to still be wrong live — `bg-[#22C55E]/30` and `bg-[#F59E0B]/30` (30% opacity)
+render as a muddy brown/olive against the dark card, which is what you were seeing. Confirmed
+this with `getComputedStyle` before touching code (`rgba(...,0.3)` on both cells), fixed by
+dropping the opacity modifier entirely for a fully solid `#22C55E`/`#F59E0B` fill (with
+contrast-matched text/checkmark colors — light text on the green fill, dark text on the amber
+fill, since both are now fully saturated backgrounds), then re-checked computed styles again
+(`rgb(34,197,94)` / `rgb(245,158,11)`, no alpha) both locally and live before screenshotting
+the live result. Today's ring was never actually the problem — it's an independent `ring-2`
+layer and was already rendering correctly; the muddiness was purely the low-opacity fill.
+
+**Dashboard.** Added a `WeekStats` strip (3 tiles: workouts completed and calories burned,
+both last-7-days from `workout_sessions`, plus longest-ever consecutive-day streak via a
+standard longest-run-over-a-date-set scan) above the calendar, all from existing data. Shrunk
+the calendar itself — smaller title, tighter grid gap, and a `max-w-xl` cap on the grid that
+naturally does nothing on mobile (where content width is already narrower than the cap) while
+meaningfully shrinking it on desktop, addressing "should not be the dominant element" without
+a breakpoint-specific override.
+
+**Nutrition.** Installed `recharts`; added a 7-day calorie trend (one bar per day, summing
+that day's logged meal calories — a day with no meals renders as a real 0-height bar, not a
+faked value) and a rotating tip card using the exact 5 lines given, same random-pick-per-load
+mechanism as the Dashboard's motivational line.
+
+**Avatar upload.** Re-checked the upload path construction against the specific bug described
+(a stray `avatars/` prefix) — it was never there; the path was already exactly
+`${userId}/avatar.ext`. Re-tested that exact path directly against Supabase's REST API,
+bypassing the app entirely, and got the identical RLS rejection as before. This is conclusive:
+the client code matches the described policy shape and still fails, so the problem is in the
+policy definition itself, not in this codebase. Added the exact path string to the
+user-facing error message so the next debugging pass (in the Supabase dashboard, not here)
+starts from real data instead of another guess.
+
+**Verification.** `tsc -b` and `npm run build` clean. Calendar verified via `getComputedStyle`
+both locally and live (not just screenshots) before and after the fix. Full Dashboard and
+Nutrition pages screenshotted live at 1440px and 375px with no console errors.
