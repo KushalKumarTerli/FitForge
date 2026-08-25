@@ -264,3 +264,139 @@ starts from real data instead of another guess.
 **Verification.** `tsc -b` and `npm run build` clean. Calendar verified via `getComputedStyle`
 both locally and live (not just screenshots) before and after the fix. Full Dashboard and
 Nutrition pages screenshotted live at 1440px and 375px with no console errors.
+
+---
+
+# Follow-up: weekly schedule, dashboard stats, compact calendar, macro targets, quick log
+
+Final feature pass — the last 5 units from the outstanding spec. All built against the 4
+tables confirmed already present in Supabase (`weekly_schedule`, `weight_logs`, `water_logs`,
+`notes`; `weight_logs`/`water_logs`/`notes` use `logged_at` timestamptz only, no separate
+`date` column). Schema for these wasn't in `database/schema.sql` (still stale, as noted in
+earlier sections), so columns were confirmed directly against the live PostgREST endpoint
+(deliberate bad-column probes to read the `42703` error text) before writing any code against
+them, the same verification approach used for `plan_exercises`' real shape in section 4 of the
+original pass.
+
+**Placement decision, asked up front rather than guessed:** the reference image for this pass
+showed Nutrition Summary (macro rings) and Quick Log living on the *Dashboard*, but the
+existing app had meal-logging, the calorie trend, and meal history on the *Nutrition* page.
+Given you explicitly said the image was layout-only, not a page-ownership map, this was a real
+fork rather than a call I could derive from the code. Your answer: **both pages, shared
+component.** `NutritionTargets` and `QuickLog` are each a single component rendered on both
+Dashboard and Nutrition, not two implementations. Nutrition's old standalone "Log a meal" card
+and its separate "Today" meals list are gone — `QuickLog`'s Meal tab (with its own
+today's-entries list) replaced both.
+
+## 1. Weekly schedule
+
+`WeeklySchedule` — a 7-cell Mon–Sun strip on the Dashboard. Each cell is a base-ui `Menu`
+trigger (same pattern as the existing account-menu in `AppHeader`) showing the day's assigned
+plan name or "Rest"; picking a plan or "Rest" upserts `weekly_schedule` on
+`(user_id, day_of_week)`. Plan list is the same real-plans query used elsewhere (`user_id is
+null OR user_id = <current user>`) — verified the assignment popover only ever lists Push Day,
+Pull Day, Legs + Abs, Athletic Strength, and the user's own custom plans, never a fabricated
+type, per the constraint that applied to this whole pass.
+
+`day_of_week` had no existing rows to infer a convention from, so this pass fixed one:
+JS `Date#getDay()` (`0=Sun … 6=Sat`), used consistently everywhere the column is read or
+written. Worth knowing for any future direct SQL against this table.
+
+Dashboard's "Today's Workout" default-selection logic, in the priority order specified:
+today's `weekly_schedule` row has a `plan_id` → default to it; row exists with `plan_id` null
+→ rest day (banner: "Rest day — start a workout anyway if you want", falls back to the
+existing first-plan default so Start Workout stays usable, not hidden); no row at all → the
+prior default, untouched. The existing manual override dropdown sits on top of all three cases
+exactly as before — confirmed live: assigned Pull Day to today, hard-reloaded, dropdown
+defaulted to Pull Day and its real exercises loaded, then manually overrode to Legs + Abs and
+that plan's exercises loaded instead.
+
+## 2. Dashboard stat cards
+
+New `DashboardStats`, replacing the old `WeekStats` 3-tile weekly-aggregate strip (deleted —
+its metrics didn't map onto the new 4 cards and running both would have cluttered the page
+well past what the reference layout showed). Calories Burned and Workout Duration compare
+today's session to yesterday's; the comparison line is omitted (not shown as 0% or broken)
+unless yesterday has a session with `total_calories` actually set — a session with no
+`total_calories` yet just means "started but not finished," not "burned zero," so it doesn't
+count as a valid comparison point. Workout Streak is the same consecutive-days-back scan
+`WorkoutCalendar` already had; moved here from the calendar's header (see below) rather than
+shown in both places. Weekly Consistency = scheduled days-so-far-with-a-session ÷ total
+scheduled days this week (both from `weekly_schedule.plan_id is not null`), card hidden
+entirely when no day this week is scheduled — verified both states live (absent on a
+zero-schedule account, `0 of 1 days` right after scheduling one day).
+
+## 3. Compact calendar
+
+`WorkoutCalendar` restyled to small per-day dots (green/amber/gray) with a legend row once at
+the top, replacing the old full-cell color fill. Explicitly a visual restyle only — the
+per-day status derivation (session exists → amber unless every set completed → green) is
+untouched. Also dropped the streak badge from the calendar header, since Workout Streak is now
+one of the four dedicated stat cards above it and showing it twice added nothing.
+
+## 4. Nutrition macro targets
+
+`NutritionTargets` — Mifflin-St Jeor BMR from `profiles.age/gender/weight_kg/height_cm` ×
+1.55 (moderate activity), split 30% protein / 40% carbs / 30% fat. Gender offset: Male +5,
+Female −161, anything else (Other / prefer not to say / unset) uses the midpoint of those two
+rather than guessing a side. Missing any of the four required profile fields shows a prompt
+linking to `/profile` instead of a fabricated number. Rendered as the existing `RadialProgress`
+ring for calories plus three macro bars, labeled "Estimated Target" per spec, against today's
+actual summed `meals` totals.
+
+## 5. Quick Log
+
+`QuickLog` — base-ui `Tabs` (Meal / Water / Weight / Note), one shared component on both pages.
+Meal tab is the pre-existing raw-text → `/api/meals/parse` → `meals` insert flow, moved here
+unchanged (voice input included). Water inserts `water_logs` and shows today's running total
+inline. Weight inserts `weight_logs` **and** updates `profiles.weight_kg` in the same action,
+since that's the value the MET calorie-burn formula reads elsewhere in the app — confirmed the
+Profile page reflects the new weight immediately after logging it from Quick Log. Note inserts
+`notes`. Each tab lists today's own entries below its input, per spec.
+
+## Bugs found during this pass's own verification
+
+**`RadialProgress` track was invisible.** Its background-track circle used `text-muted`, and
+in this app's dark theme `--muted` and `--card` are the literal same hex (`#1F2937`) — so the
+ring's track color exactly matched whatever card it sat on. Never surfaced before because the
+only prior usage (Workout page) is a small 72px ring next to a timer; this pass's Nutrition
+Summary ring is 120px and the centerpiece of its card, where it was immediately obvious as a
+blank gap instead of a ring. Fixed by switching the track to `text-border` (the token actually
+meant for a visible-but-subtle line against a card), confirmed via `getComputedStyle` before
+and after. Also checked light-mode tokens for the same collision — same issue there, same fix
+covers it, though the app forces dark mode so it isn't reachable today.
+
+**Nutrition Summary didn't reflect a meal just logged in the same session.** `QuickLog` and
+`NutritionTargets` are both self-contained (fetch-on-mount, no shared state), matching how
+every other Dashboard widget in this app already works — fine everywhere else, but here the two
+sit stacked on the same page and are clearly meant to work together, so a meal logged via Quick
+Log not moving the ring above it until a manual reload read as broken, not merely stale.
+Fixed with a minimal `onMealLogged` callback prop on `QuickLog` and a `refreshKey` prop on
+`NutritionTargets`, wired per-page; confirmed logging a real meal (live Mistral round-trip,
+550 kcal parsed) updates the ring immediately, no reload, on both Dashboard and Nutrition.
+
+## Verification
+
+No interactive browser tool was preconfigured for this repo (no project-level `run` skill, no
+`chromium-cli`), so this pass drove a real headless Chromium via `playwright` (browsers were
+already cached locally) against both the local dev server and the live Vercel URL — sign up a
+disposable test account through the actual Signup form, click through the real UI, read
+computed styles and rendered text, screenshot. Recommend running `/run-skill-generator` for
+this repo so a future pass doesn't have to rebuild this driver from scratch.
+
+Also used direct REST calls against the live Supabase project (disposable auth accounts, not
+the real account) to confirm RLS allows the exact insert/upsert/update shapes this pass's code
+performs against `weekly_schedule`, `water_logs`, `weight_logs`, and `notes` before wiring them
+into components.
+
+Confirmed live on `fit-forge-green.vercel.app` after push (Vercel commit status: success,
+served bundle hash matched the local build): schedule assignment → hard reload → Today's
+Workout defaulting → manual override still works; Weekly Consistency appearing only once a day
+is scheduled; all four Quick Log tabs including a real backend meal-parse round-trip; the
+vs-yesterday and streak stat-card math against seeded session data (25%/33%/2-day-streak,
+matching hand-computed expected values exactly). Zero console errors across every run, local
+and live. `tsc -b` and `npm run build` clean throughout.
+
+**Known open items, unchanged from before this pass:** avatar upload still blocked on the
+Storage RLS policy; button hover still CSS-based, not `framer-motion`; still no `CLAUDE.md` in
+the repo.
