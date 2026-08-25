@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Check, Clock } from 'lucide-react'
+import { Check, Clock, Pause, Play, RotateCcw } from 'lucide-react'
 import { AnimatePresence, motion } from 'framer-motion'
+import { AlertDialog } from '@base-ui/react/alert-dialog'
 import { supabase } from '@/lib/supabase'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import {
   Card,
   CardContent,
@@ -64,8 +65,11 @@ export default function Workout() {
   const [exercises, setExercises] = useState<SessionExercise[]>([])
   const [setsByExercise, setSetsByExercise] = useState<Record<string, SessionSet[]>>({})
   const [weightKg, setWeightKg] = useState<number | null>(null)
-  const [elapsedSeconds, setElapsedSeconds] = useState(0)
+  const [accumulatedMs, setAccumulatedMs] = useState(0)
+  const [runningSince, setRunningSince] = useState<number | null>(null)
+  const [, setTick] = useState(0)
   const [finishing, setFinishing] = useState(false)
+  const [resetting, setResetting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [summary, setSummary] = useState<{ calories: number; durationSeconds: number } | null>(null)
 
@@ -129,17 +133,67 @@ export default function Workout() {
     load()
   }, [sessionId])
 
+  // On session load, seed accumulated active time from the elapsed wall time since
+  // started_at and start the clock running. Pause/resume from here on tracks active
+  // time only client-side (a refresh mid-pause falls back to this same seeding, i.e.
+  // it re-derives from started_at rather than remembering the paused point).
   useEffect(() => {
-    if (!session || summary) return
-    const startedAt = new Date(session.started_at).getTime()
-    const tick = () => setElapsedSeconds(Math.floor((Date.now() - startedAt) / 1000))
-    tick()
-    const interval = setInterval(tick, 1000)
+    if (!session) return
+    const startedAtMs = new Date(session.started_at).getTime()
+    setAccumulatedMs(Math.max(0, Date.now() - startedAtMs))
+    setRunningSince(Date.now())
+  }, [session])
+
+  useEffect(() => {
+    if (!runningSince || summary) return
+    const interval = setInterval(() => setTick((t) => t + 1), 1000)
     return () => clearInterval(interval)
-  }, [session, summary])
+  }, [runningSince, summary])
+
+  const displayMs = accumulatedMs + (runningSince ? Date.now() - runningSince : 0)
+  const displaySeconds = Math.floor(displayMs / 1000)
+  const isPaused = runningSince === null
+
+  function handlePauseResume() {
+    if (runningSince) {
+      setAccumulatedMs((prev) => prev + (Date.now() - runningSince))
+      setRunningSince(null)
+    } else {
+      setRunningSince(Date.now())
+    }
+  }
 
   const allSets = useMemo(() => Object.values(setsByExercise).flat(), [setsByExercise])
   const completedCount = allSets.filter((s) => s.status === 'completed').length
+
+  async function handleResetWorkout() {
+    setResetting(true)
+    setError(null)
+
+    const allSetIds = allSets.map((s) => s.id)
+    const { error: resetError } = await supabase
+      .from('session_sets')
+      .update({ status: 'pending', completed_at: null })
+      .in('id', allSetIds)
+
+    if (resetError) {
+      setError(resetError.message)
+      setResetting(false)
+      return
+    }
+
+    setSetsByExercise((prev) => {
+      const next: Record<string, SessionSet[]> = {}
+      for (const [key, sets] of Object.entries(prev)) {
+        next[key] = sets.map((s) => ({ ...s, status: 'pending', completed_at: null }))
+      }
+      return next
+    })
+
+    setAccumulatedMs(0)
+    setRunningSince(Date.now())
+    setResetting(false)
+  }
 
   async function completeSet(sessionExerciseId: string, setId: string) {
     const completedAt = new Date().toISOString()
@@ -161,8 +215,8 @@ export default function Workout() {
     setFinishing(true)
 
     const completedAt = new Date()
-    const startedAt = new Date(session.started_at)
-    const durationSeconds = Math.max(0, Math.floor((completedAt.getTime() - startedAt.getTime()) / 1000))
+    const finalMs = accumulatedMs + (runningSince ? Date.now() - runningSince : 0)
+    const durationSeconds = Math.max(0, Math.floor(finalMs / 1000))
     const durationHours = durationSeconds / 3600
     const numExercises = exercises.length || 1
 
@@ -262,15 +316,55 @@ export default function Workout() {
                 {completedCount}/{allSets.length}
               </span>
             </div>
-            <CardTitle className="font-heading flex items-center gap-3 text-5xl tabular-nums sm:text-6xl">
+            <CardTitle
+              className={cn(
+                'font-heading flex items-center gap-3 text-5xl tabular-nums transition-opacity sm:text-6xl',
+                isPaused && 'opacity-40'
+              )}
+            >
               <Clock className="size-8 text-muted-foreground sm:size-10" />
-              {formatDuration(elapsedSeconds)}
+              {formatDuration(displaySeconds)}
             </CardTitle>
           </div>
           <CardDescription>
             {completedCount} / {allSets.length} sets completed
+            {isPaused && <span className="ml-2 text-accent">· paused</span>}
           </CardDescription>
         </CardHeader>
+        <CardContent className="flex justify-center gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={handlePauseResume}>
+            {isPaused ? <Play className="size-4" /> : <Pause className="size-4" />}
+            {isPaused ? 'Resume' : 'Pause'}
+          </Button>
+
+          <AlertDialog.Root>
+            <AlertDialog.Trigger className={buttonVariants({ variant: 'ghost', size: 'sm' })}>
+              <RotateCcw className="size-4" />
+              Reset
+            </AlertDialog.Trigger>
+            <AlertDialog.Portal>
+              <AlertDialog.Backdrop className="fixed inset-0 z-50 bg-black/60" />
+              <AlertDialog.Popup className="fixed top-1/2 left-1/2 z-50 w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-xl border border-border bg-card p-5 text-card-foreground shadow-lg">
+                <AlertDialog.Title className="font-heading text-lg">Reset this workout?</AlertDialog.Title>
+                <AlertDialog.Description className="mt-1 text-sm text-muted-foreground">
+                  All progress will be cleared.
+                </AlertDialog.Description>
+                <div className="mt-4 flex justify-end gap-2">
+                  <AlertDialog.Close className={buttonVariants({ variant: 'ghost', size: 'sm' })}>
+                    Cancel
+                  </AlertDialog.Close>
+                  <AlertDialog.Close
+                    className={buttonVariants({ variant: 'destructive', size: 'sm' })}
+                    onClick={handleResetWorkout}
+                    disabled={resetting}
+                  >
+                    Reset
+                  </AlertDialog.Close>
+                </div>
+              </AlertDialog.Popup>
+            </AlertDialog.Portal>
+          </AlertDialog.Root>
+        </CardContent>
       </Card>
 
       {exercises.map((se) => (

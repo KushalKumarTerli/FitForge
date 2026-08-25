@@ -52,7 +52,7 @@ export function AppHeader() {
   }
 
   return (
-    <nav className="flex items-center justify-between border-b border-border px-4 py-3 sm:px-6">
+    <nav className="sticky top-0 z-40 flex items-center justify-between border-b border-border bg-background px-4 py-3 sm:px-6">
       <button type="button" onClick={() => navigate('/')} className="flex items-center outline-none">
         <img src="/logo.png" alt="FitForge" className="h-8 w-auto sm:h-9" />
       </button>

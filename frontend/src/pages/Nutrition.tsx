@@ -12,6 +12,7 @@ import {
 import { cn } from '@/lib/utils'
 import { AppHeader } from '@/components/AppHeader'
 import { NutritionTrend } from '@/components/NutritionTrend'
+import { VoiceInputButton } from '@/components/VoiceInputButton'
 
 const NUTRITION_TIPS = [
   'Protein spread across meals is used more efficiently than one big dose.',
@@ -172,13 +173,19 @@ export default function Nutrition() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-              <Textarea
-                placeholder="e.g. grilled chicken breast with a cup of rice and broccoli"
-                value={rawText}
-                onChange={(e) => setRawText(e.target.value)}
-                disabled={submitting}
-                required
-              />
+              <div className="relative">
+                <Textarea
+                  placeholder="e.g. grilled chicken breast with a cup of rice and broccoli"
+                  value={rawText}
+                  onChange={(e) => setRawText(e.target.value)}
+                  disabled={submitting}
+                  required
+                  className="pr-10"
+                />
+                <div className="absolute top-1.5 right-1.5">
+                  <VoiceInputButton onResult={(text) => setRawText(text)} />
+                </div>
+              </div>
               {info && <p className="text-sm text-muted-foreground">{info}</p>}
               <Button type="submit" disabled={submitting}>
                 {submitting ? 'Logging…' : 'Log meal'}

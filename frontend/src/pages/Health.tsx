@@ -6,6 +6,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 import { AppHeader } from '@/components/AppHeader'
+import { VoiceInputButton } from '@/components/VoiceInputButton'
 
 const markdownComponents: Components = {
   h1: ({ node, ...props }) => <h3 className="mt-3 mb-1 text-base font-semibold first:mt-0" {...props} />,
@@ -216,12 +217,18 @@ export default function Health() {
             {error && <p className="text-sm text-destructive">{error}</p>}
 
             <form onSubmit={handleSend} className="flex flex-col gap-2">
-              <Textarea
-                placeholder="Tell me what's your doubt....!"
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                disabled={sending}
-              />
+              <div className="relative">
+                <Textarea
+                  placeholder="Tell me what's your doubt....!"
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  disabled={sending}
+                  className="pr-10"
+                />
+                <div className="absolute top-1.5 right-1.5">
+                  <VoiceInputButton onResult={(text) => setDraft(text)} />
+                </div>
+              </div>
               <Button type="submit" disabled={sending || !draft.trim()}>
                 {sending ? 'Sending…' : 'Send'}
               </Button>
