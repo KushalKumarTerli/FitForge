@@ -10,6 +10,7 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { WorkoutCalendar } from '@/components/WorkoutCalendar'
+import { WeekStats } from '@/components/WeekStats'
 import { AppHeader } from '@/components/AppHeader'
 
 type Profile = {
@@ -223,6 +224,7 @@ export default function Dashboard() {
           <p className="text-sm text-muted-foreground">Loading…</p>
         ) : (
           <>
+            <WeekStats />
             <WorkoutCalendar />
 
             <Card>

@@ -111,8 +111,8 @@ export function WorkoutCalendar() {
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
-          <CardTitle className="font-heading text-2xl">{monthLabel}</CardTitle>
-          {!error && <span className="text-sm font-medium">🔥 {streak} day streak</span>}
+          <CardTitle className="font-heading text-lg">{monthLabel}</CardTitle>
+          {!error && <span className="text-xs font-medium">🔥 {streak} day streak</span>}
         </div>
       </CardHeader>
       <CardContent>
@@ -126,9 +126,9 @@ export function WorkoutCalendar() {
             </Button>
           </div>
         ) : (
-          <div className="grid grid-cols-7 gap-1.5">
+          <div className="mx-auto grid max-w-xl grid-cols-7 gap-1">
             {WEEKDAY_LABELS.map((label, i) => (
-              <div key={i} className="pb-1 text-center text-xs font-medium text-muted-foreground">
+              <div key={i} className="pb-0.5 text-center text-[0.65rem] font-medium text-muted-foreground">
                 {label}
               </div>
             ))}
@@ -141,16 +141,16 @@ export function WorkoutCalendar() {
                 <div
                   key={i}
                   className={cn(
-                    'relative flex aspect-square items-center justify-center rounded-lg text-sm backdrop-blur-sm',
-                    status === 'finished' && 'bg-[#22C55E]/30 text-foreground',
-                    status === 'partial' && 'bg-[#F59E0B]/30 text-foreground',
+                    'relative flex aspect-square items-center justify-center rounded-lg text-sm font-medium',
+                    status === 'finished' && 'bg-[#22C55E] text-[#F3F4F6]',
+                    status === 'partial' && 'bg-[#F59E0B] text-[#111827]',
                     status === 'none' && 'bg-transparent text-muted-foreground',
                     isToday && 'ring-2 ring-[#22C55E] ring-offset-1 ring-offset-card'
                   )}
                 >
                   {day}
                   {status === 'finished' && (
-                    <Check className="absolute bottom-0.5 right-0.5 size-3 text-[#22C55E]" />
+                    <Check className="absolute bottom-0.5 right-0.5 size-3 text-[#F3F4F6]" />
                   )}
                 </div>
               )

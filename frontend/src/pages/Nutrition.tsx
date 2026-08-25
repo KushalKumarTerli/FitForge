@@ -11,6 +11,15 @@ import {
 } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 import { AppHeader } from '@/components/AppHeader'
+import { NutritionTrend } from '@/components/NutritionTrend'
+
+const NUTRITION_TIPS = [
+  'Protein spread across meals is used more efficiently than one big dose.',
+  'Fiber slows digestion and helps you feel full longer.',
+  'Most people underestimate liquid calories — they still count.',
+  'Whole foods generally keep you fuller than processed equivalents at the same calories.',
+  'Consistent meal timing helps regulate hunger cues over time.',
+]
 
 type Meal = {
   id: string
@@ -31,6 +40,7 @@ export default function Nutrition() {
   const [info, setInfo] = useState<string | null>(null)
   const [meals, setMeals] = useState<Meal[]>([])
   const [loadingMeals, setLoadingMeals] = useState(true)
+  const [tip] = useState(() => NUTRITION_TIPS[Math.floor(Math.random() * NUTRITION_TIPS.length)])
 
   useEffect(() => {
     loadTodaysMeals()
@@ -146,6 +156,15 @@ export default function Nutrition() {
       <AppHeader />
 
       <div className="mx-auto flex max-w-4xl flex-col gap-4 p-4 sm:p-6">
+        <Card>
+          <CardContent className="flex items-center gap-2">
+            <span className="text-lg">💡</span>
+            <p className="text-sm text-muted-foreground">{tip}</p>
+          </CardContent>
+        </Card>
+
+        <NutritionTrend />
+
         <Card>
           <CardHeader>
             <CardTitle>Log a meal</CardTitle>

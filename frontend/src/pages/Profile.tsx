@@ -118,7 +118,7 @@ export default function Profile() {
       .upload(path, file, { upsert: true, cacheControl: '3600' })
 
     if (uploadError) {
-      setError(`Avatar upload failed: ${uploadError.message}`)
+      setError(`Avatar upload failed for path "${path}": ${uploadError.message}`)
       setUploading(false)
       return
     }
