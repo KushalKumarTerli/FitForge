@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { RadialProgress } from '@/components/RadialProgress'
+import { getTodayBounds } from '@/lib/date'
 import { cn } from '@/lib/utils'
 
 type Profile = {
@@ -39,12 +40,6 @@ function computeTargets(profile: Profile): Targets | null {
   }
 }
 
-function startOfDay(d: Date) {
-  const copy = new Date(d)
-  copy.setHours(0, 0, 0, 0)
-  return copy
-}
-
 export function NutritionTargets({ refreshKey }: { refreshKey?: number } = {}) {
   const [loading, setLoading] = useState(true)
   const [targets, setTargets] = useState<Targets | null>(null)
@@ -66,9 +61,7 @@ export function NutritionTargets({ refreshKey }: { refreshKey?: number } = {}) {
       return
     }
 
-    const today = startOfDay(new Date())
-    const tomorrow = new Date(today)
-    tomorrow.setDate(tomorrow.getDate() + 1)
+    const { start, end } = getTodayBounds()
 
     const [{ data: profile }, { data: meals }] = await Promise.all([
       supabase.from('profiles').select('age, gender, weight_kg, height_cm').eq('id', user.id).single(),
@@ -76,8 +69,8 @@ export function NutritionTargets({ refreshKey }: { refreshKey?: number } = {}) {
         .from('meals')
         .select('calories, protein_g, carbs_g, fat_g')
         .eq('user_id', user.id)
-        .gte('logged_at', today.toISOString())
-        .lt('logged_at', tomorrow.toISOString()),
+        .gte('logged_at', start)
+        .lt('logged_at', end),
     ])
 
     if (profile) setTargets(computeTargets(profile))

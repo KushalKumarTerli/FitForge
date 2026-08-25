@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
+import { getTodayBounds } from '@/lib/date'
 import { VoiceInputButton } from '@/components/VoiceInputButton'
 
 type Meal = {
@@ -21,12 +22,6 @@ type WeightLog = { id: string; weight_kg: number; logged_at: string }
 type Note = { id: string; content: string; logged_at: string }
 
 const PARSE_TIMEOUT_MS = 60000
-
-function startOfDay(d: Date) {
-  const copy = new Date(d)
-  copy.setHours(0, 0, 0, 0)
-  return copy
-}
 
 function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
@@ -69,11 +64,7 @@ export function QuickLog({ onMealLogged }: { onMealLogged?: () => void } = {}) {
     }
     setUserId(user.id)
 
-    const today = startOfDay(new Date())
-    const tomorrow = new Date(today)
-    tomorrow.setDate(tomorrow.getDate() + 1)
-    const startIso = today.toISOString()
-    const endIso = tomorrow.toISOString()
+    const { start: startIso, end: endIso } = getTodayBounds()
 
     const [{ data: mealData }, { data: waterData }, { data: weightData }, { data: noteData }] = await Promise.all([
       supabase

@@ -14,3 +14,17 @@ export function startOfWeekMonday(d: Date) {
   copy.setDate(copy.getDate() + diff)
   return copy
 }
+
+/**
+ * "Today" as ISO instant bounds in the caller's local timezone — the single source of truth
+ * for filtering timestamptz columns (e.g. meals.logged_at) to "today", so every caller (Quick
+ * Log, Nutrition Summary, the Health Coach's backend context) agrees on the same boundary
+ * instead of each computing its own slightly different version.
+ */
+export function getTodayBounds(now: Date = new Date()) {
+  const start = new Date(now)
+  start.setHours(0, 0, 0, 0)
+  const end = new Date(start)
+  end.setDate(end.getDate() + 1)
+  return { start: start.toISOString(), end: end.toISOString() }
+}

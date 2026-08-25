@@ -15,6 +15,13 @@ function isTrustworthy(row: SessionTotals) {
   return (row.total_duration_seconds ?? 0) <= MAX_REASONABLE_SESSION_SECONDS
 }
 
+// A near-zero yesterday baseline blows up a percentage the other direction: dividing by a
+// few seconds/calories turns any normal today into a four- or five-digit "% vs yesterday".
+// Below these floors, yesterday isn't a meaningful comparison point, so hide the line instead
+// of computing a number against it.
+const MIN_DURATION_FOR_COMPARISON = 60 // seconds
+const MIN_CALORIES_FOR_COMPARISON = 10 // kcal
+
 function sumTotals(rows: SessionTotals[] | null) {
   return (rows ?? []).filter(isTrustworthy).reduce(
     (acc, r) => ({
@@ -104,10 +111,18 @@ export function DashboardStats() {
     const hasFinishedYesterday =
       !todayHasUntrustworthySession &&
       (yesterdaySessions ?? []).filter(isTrustworthy).some((s) => s.total_calories != null)
+
     if (hasFinishedYesterday) {
       const yTotals = sumTotals(yesterdaySessions)
-      setYesterdayCalories(yTotals.calories)
-      setYesterdayDuration(yTotals.duration)
+      const yesterdayTooSmall =
+        yTotals.duration < MIN_DURATION_FOR_COMPARISON || yTotals.calories < MIN_CALORIES_FOR_COMPARISON
+      if (yesterdayTooSmall) {
+        setYesterdayCalories(null)
+        setYesterdayDuration(null)
+      } else {
+        setYesterdayCalories(yTotals.calories)
+        setYesterdayDuration(yTotals.duration)
+      }
     } else {
       setYesterdayCalories(null)
       setYesterdayDuration(null)

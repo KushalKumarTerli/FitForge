@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
+import { getTodayBounds, toDateStr } from '@/lib/date'
 import { AppHeader } from '@/components/AppHeader'
 import { VoiceInputButton } from '@/components/VoiceInputButton'
 
@@ -103,13 +104,20 @@ export default function Health() {
     ])
 
     try {
+      const { start: today_start, end: today_end } = getTodayBounds()
       const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ message: messageText, topic }),
+        body: JSON.stringify({
+          message: messageText,
+          topic,
+          today_start,
+          today_end,
+          today_date: toDateStr(new Date()),
+        }),
       })
 
       if (!response.ok) {
