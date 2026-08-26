@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Check, Clock, Pause, Play, RotateCcw } from 'lucide-react'
 import { AnimatePresence, motion } from 'framer-motion'
@@ -17,12 +17,16 @@ import { AppHeader } from '@/components/AppHeader'
 import { RadialProgress } from '@/components/RadialProgress'
 import { MAX_REASONABLE_SESSION_SECONDS } from '@/lib/workout'
 
+const COUNTDOWN_STEPS = ['3', '2', '1', 'Go!']
+
 type SessionRow = {
   id: string
   started_at: string
   completed_at: string | null
   total_calories: number | null
   total_duration_seconds: number | null
+  accumulated_seconds: number | null
+  last_resumed_at: string | null
 }
 
 type SessionSet = {
@@ -68,11 +72,26 @@ export default function Workout() {
   const [weightKg, setWeightKg] = useState<number | null>(null)
   const [accumulatedMs, setAccumulatedMs] = useState(0)
   const [runningSince, setRunningSince] = useState<number | null>(null)
+  const accumulatedMsRef = useRef(0)
+  const runningSinceRef = useRef<number | null>(null)
   const [, setTick] = useState(0)
   const [finishing, setFinishing] = useState(false)
   const [resetting, setResetting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [summary, setSummary] = useState<{ calories: number; durationSeconds: number } | null>(null)
+  const [countdownActive, setCountdownActive] = useState(false)
+  const [countdownLabel, setCountdownLabel] = useState(COUNTDOWN_STEPS[0])
+
+  // Keep refs mirrored with state so imperative logic (the visibilitychange listener, which
+  // subscribes once and must not read a stale closure) always sees the latest values.
+  function setAccumulated(ms: number) {
+    accumulatedMsRef.current = ms
+    setAccumulatedMs(ms)
+  }
+  function setRunning(since: number | null) {
+    runningSinceRef.current = since
+    setRunningSince(since)
+  }
 
   useEffect(() => {
     if (!sessionId) {
@@ -88,7 +107,9 @@ export default function Workout() {
       const [{ data: sessionRow }, { data: profileRow }, { data: sessionExercises }] = await Promise.all([
         supabase
           .from('workout_sessions')
-          .select('id, started_at, completed_at, total_calories, total_duration_seconds')
+          .select(
+            'id, started_at, completed_at, total_calories, total_duration_seconds, accumulated_seconds, last_resumed_at'
+          )
           .eq('id', sessionId)
           .single(),
         user
@@ -134,16 +155,44 @@ export default function Workout() {
     load()
   }, [sessionId])
 
-  // On session load, seed accumulated active time from the elapsed wall time since
-  // started_at and start the clock running. Pause/resume from here on tracks active
-  // time only client-side (a refresh mid-pause falls back to this same seeding, i.e.
-  // it re-derives from started_at rather than remembering the paused point).
+  // accumulated_seconds + last_resumed_at (not client-side state) are the real source of
+  // truth for elapsed active time, so it survives a reload or a tab-away instead of being
+  // re-derived from wall-clock time since started_at. accumulated_seconds === 0 means this
+  // session has never been paused/resumed before — a true first start, which gets the
+  // countdown; continuing an already-paused-at-least-once session skips it and resumes
+  // ticking immediately from exactly where it left off.
   useEffect(() => {
     if (!session) return
-    const startedAtMs = new Date(session.started_at).getTime()
-    setAccumulatedMs(Math.max(0, Date.now() - startedAtMs))
-    setRunningSince(Date.now())
+    const isFirstStart = (session.accumulated_seconds ?? 0) === 0
+    if (isFirstStart) {
+      setAccumulated(0)
+      setRunning(null) // the clock doesn't start until the countdown finishes
+      setCountdownActive(true)
+    } else {
+      setAccumulated((session.accumulated_seconds ?? 0) * 1000)
+      setRunning(session.last_resumed_at ? new Date(session.last_resumed_at).getTime() : null)
+      setCountdownActive(false)
+    }
   }, [session])
+
+  // 3-2-1-Go, one second per step, then actually starts the clock via resumeTimer().
+  useEffect(() => {
+    if (!countdownActive) return
+    let step = 0
+    setCountdownLabel(COUNTDOWN_STEPS[0])
+    const interval = setInterval(() => {
+      step++
+      if (step < COUNTDOWN_STEPS.length) {
+        setCountdownLabel(COUNTDOWN_STEPS[step])
+      } else {
+        clearInterval(interval)
+        setCountdownActive(false)
+        resumeTimer()
+      }
+    }, 1000)
+    return () => clearInterval(interval)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [countdownActive])
 
   useEffect(() => {
     if (!runningSince || summary) return
@@ -151,17 +200,36 @@ export default function Workout() {
     return () => clearInterval(interval)
   }, [runningSince, summary])
 
-  // Folds any running time into accumulatedMs and stops the clock. Uses functional state
-  // updates (not the closed-over `runningSince`) so it stays correct when called from the
-  // visibility listener below, which subscribes once and must not read a stale value.
+  // Folds any running time into accumulated_seconds and stops the clock, both locally and in
+  // the DB — the real source of truth now, not just React state. Reads from refs (not the
+  // closed-over state) so it stays correct when called from the visibility listener below,
+  // which subscribes once and must not read a stale value.
   function pauseTimer() {
-    setRunningSince((prev) => {
-      if (prev != null) {
-        const elapsed = Date.now() - prev
-        setAccumulatedMs((acc) => acc + elapsed)
-      }
-      return null
-    })
+    const since = runningSinceRef.current
+    if (since == null) return
+    const elapsed = Date.now() - since
+    const newMs = accumulatedMsRef.current + elapsed
+    setAccumulated(newMs)
+    setRunning(null)
+    if (session) {
+      supabase
+        .from('workout_sessions')
+        .update({ accumulated_seconds: Math.floor(newMs / 1000), last_resumed_at: null })
+        .eq('id', session.id)
+        .then()
+    }
+  }
+
+  function resumeTimer() {
+    const now = Date.now()
+    setRunning(now)
+    if (session) {
+      supabase
+        .from('workout_sessions')
+        .update({ last_resumed_at: new Date(now).toISOString() })
+        .eq('id', session.id)
+        .then()
+    }
   }
 
   // Auto-pause when the tab is hidden or closed, so leaving the app running doesn't inflate
@@ -182,7 +250,7 @@ export default function Workout() {
     if (runningSince) {
       pauseTimer()
     } else {
-      setRunningSince(Date.now())
+      resumeTimer()
     }
   }
 
@@ -213,8 +281,15 @@ export default function Workout() {
       return next
     })
 
-    setAccumulatedMs(0)
-    setRunningSince(Date.now())
+    const now = Date.now()
+    setAccumulated(0)
+    setRunning(now)
+    if (session) {
+      await supabase
+        .from('workout_sessions')
+        .update({ accumulated_seconds: 0, last_resumed_at: new Date(now).toISOString() })
+        .eq('id', session.id)
+    }
     setResetting(false)
   }
 
@@ -260,6 +335,10 @@ export default function Workout() {
         completed_at: completedAt.toISOString(),
         total_duration_seconds: durationSeconds,
         total_calories: totalCalories,
+        // Fold the final running delta into accumulated_seconds one last time, through the
+        // same sanity cap, so it matches total_duration_seconds as the session's resting state.
+        accumulated_seconds: durationSeconds,
+        last_resumed_at: null,
       })
       .eq('id', session.id)
 
@@ -335,6 +414,24 @@ export default function Workout() {
   return (
     <div className="min-h-svh bg-background">
       <AppHeader />
+
+      {countdownActive && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <AnimatePresence mode="wait">
+            <motion.span
+              key={countdownLabel}
+              initial={{ scale: 0.5, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 1.5, opacity: 0 }}
+              transition={{ duration: 0.3 }}
+              className="font-heading text-8xl text-white"
+            >
+              {countdownLabel}
+            </motion.span>
+          </AnimatePresence>
+        </div>
+      )}
+
       <div className="mx-auto flex max-w-4xl flex-col gap-4 p-4 sm:p-6">
       <Card>
         <CardHeader className="items-center">

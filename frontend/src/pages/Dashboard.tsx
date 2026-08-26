@@ -80,6 +80,12 @@ export default function Dashboard() {
   )
   const [nutritionRefreshKey, setNutritionRefreshKey] = useState(0)
 
+  // The single shared source of truth for "what plan is assigned to which day of week" —
+  // both the This Week strip and the plan dropdown below read and write this same state, so
+  // a change in either place is reflected in the other immediately, no reload required.
+  const [scheduleByDow, setScheduleByDow] = useState<Record<number, string | null>>({})
+  const [inProgressSessionId, setInProgressSessionId] = useState<string | null>(null)
+
   useEffect(() => {
     async function load() {
       const {
@@ -88,51 +94,96 @@ export default function Dashboard() {
       if (!user) return
 
       const todayDow = new Date().getDay()
+      const todayStr = toDateStr(new Date())
 
-      const [{ data: profileData }, { data: planData }, { data: todaySessions }, { data: scheduleRow }] =
-        await Promise.all([
-          supabase.from('profiles').select('full_name, weight_kg, height_cm').eq('id', user.id).single(),
-          supabase
-            .from('workout_plans')
-            .select('id, name, type, sequence_order')
-            .or(`user_id.is.null,user_id.eq.${user.id}`)
-            .order('sequence_order', { nullsFirst: false }),
-          supabase
-            .from('workout_sessions')
-            .select('id')
-            .eq('user_id', user.id)
-            .eq('date', toDateStr(new Date()))
-            .limit(1),
-          supabase
-            .from('weekly_schedule')
-            .select('plan_id')
-            .eq('user_id', user.id)
-            .eq('day_of_week', todayDow)
-            .maybeSingle(),
-        ])
+      const [
+        { data: profileData },
+        { data: planData },
+        { data: todaySessions },
+        { data: scheduleRows },
+        { data: inProgress },
+      ] = await Promise.all([
+        supabase.from('profiles').select('full_name, weight_kg, height_cm').eq('id', user.id).single(),
+        supabase
+          .from('workout_plans')
+          .select('id, name, type, sequence_order')
+          .or(`user_id.is.null,user_id.eq.${user.id}`)
+          .order('sequence_order', { nullsFirst: false }),
+        supabase.from('workout_sessions').select('id').eq('user_id', user.id).eq('date', todayStr).limit(1),
+        supabase.from('weekly_schedule').select('day_of_week, plan_id').eq('user_id', user.id),
+        supabase
+          .from('workout_sessions')
+          .select('id, plan_id')
+          .eq('user_id', user.id)
+          .eq('date', todayStr)
+          .is('completed_at', null)
+          .order('started_at', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ])
 
       setProfile(profileData)
       setPlans(planData ?? [])
       setHasWorkoutToday((todaySessions?.length ?? 0) > 0)
+
+      const scheduleMap: Record<number, string | null> = {}
+      for (const row of scheduleRows ?? []) scheduleMap[row.day_of_week] = row.plan_id
+      setScheduleByDow(scheduleMap)
 
       // Default plan selection, in priority order:
       // a) today's weekly_schedule row has a plan_id -> default to it
       // b) today's weekly_schedule row exists but plan_id is null -> rest day;
       //    fall back to the existing "first plan" default so Start Workout still works
       // c) no weekly_schedule row at all -> existing default, unchanged
-      if (scheduleRow?.plan_id) {
+      const rowExistsToday = todayDow in scheduleMap
+      if (rowExistsToday && scheduleMap[todayDow]) {
         setIsRestDay(false)
-        setSelectedPlanId(scheduleRow.plan_id)
+        setSelectedPlanId(scheduleMap[todayDow]!)
       } else {
-        setIsRestDay(scheduleRow !== null)
+        setIsRestDay(rowExistsToday)
         if (planData && planData.length > 0) {
           setSelectedPlanId(planData[0].id)
         }
       }
+
+      // An unfinished session for today takes priority over any of the above — continuing
+      // resumes the exact plan that session was already started with.
+      if (inProgress) {
+        setInProgressSessionId(inProgress.id)
+        if (inProgress.plan_id) {
+          setIsRestDay(false)
+          setSelectedPlanId(inProgress.plan_id)
+        }
+      }
+
       setLoading(false)
     }
     load()
   }, [])
+
+  async function assignPlan(dow: number, planId: string | null) {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) return
+
+    const { error: assignError } = await supabase
+      .from('weekly_schedule')
+      .upsert({ user_id: user.id, day_of_week: dow, plan_id: planId }, { onConflict: 'user_id,day_of_week' })
+    if (assignError) return
+
+    setScheduleByDow((prev) => ({ ...prev, [dow]: planId }))
+
+    if (dow === new Date().getDay()) {
+      if (planId) {
+        setIsRestDay(false)
+        setSelectedPlanId(planId)
+      } else {
+        setIsRestDay(true)
+        setSelectedPlanId((prev) => prev || (plans[0]?.id ?? ''))
+      }
+    }
+  }
 
   useEffect(() => {
     if (!selectedPlanId) {
@@ -172,6 +223,7 @@ export default function Dashboard() {
     }
 
     const today = toDateStr(new Date())
+    const startedAt = new Date().toISOString()
 
     const { data: session, error: sessionError } = await supabase
       .from('workout_sessions')
@@ -179,7 +231,9 @@ export default function Dashboard() {
         user_id: user.id,
         plan_id: selectedPlanId,
         date: today,
-        started_at: new Date().toISOString(),
+        started_at: startedAt,
+        accumulated_seconds: 0,
+        last_resumed_at: startedAt,
       })
       .select()
       .single()
@@ -235,6 +289,11 @@ export default function Dashboard() {
     navigate('/workout', { state: { sessionId: session.id } })
   }
 
+  function handleContinueWorkout() {
+    if (!inProgressSessionId) return
+    navigate('/workout', { state: { sessionId: inProgressSessionId } })
+  }
+
   return (
     <div className="min-h-svh bg-background">
       <AppHeader />
@@ -245,7 +304,7 @@ export default function Dashboard() {
         ) : (
           <>
             <DashboardStats />
-            <WeeklySchedule />
+            <WeeklySchedule plans={plans} scheduleByDow={scheduleByDow} onAssign={assignPlan} />
             <WorkoutCalendar />
 
             <Card>
@@ -265,8 +324,12 @@ export default function Dashboard() {
                   ) : (
                     <select
                       value={selectedPlanId}
-                      onChange={(e) => setSelectedPlanId(e.target.value)}
-                      className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+                      disabled={!!inProgressSessionId}
+                      onChange={(e) => {
+                        setSelectedPlanId(e.target.value)
+                        assignPlan(new Date().getDay(), e.target.value)
+                      }}
+                      className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50 dark:bg-input/30"
                     >
                       {plans.map((plan) => (
                         <option key={plan.id} value={plan.id} className="bg-card text-foreground">
@@ -341,9 +404,9 @@ export default function Dashboard() {
                   <Button
                     className="mt-4 w-full"
                     disabled={starting}
-                    onClick={handleStartWorkout}
+                    onClick={inProgressSessionId ? handleContinueWorkout : handleStartWorkout}
                   >
-                    {starting ? 'Starting…' : 'Start Workout'}
+                    {starting ? 'Starting…' : inProgressSessionId ? 'Continue Workout' : 'Start Workout'}
                   </Button>
                 </CardContent>
               </Card>

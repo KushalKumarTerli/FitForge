@@ -400,3 +400,85 @@ and live. `tsc -b` and `npm run build` clean throughout.
 **Known open items, unchanged from before this pass:** avatar upload still blocked on the
 Storage RLS policy; button hover still CSS-based, not `framer-motion`; still no `CLAUDE.md` in
 the repo.
+
+---
+
+# Follow-up: schedule/history sync + resumable workout sessions
+
+## Section A — This Week ↔ Today's Workout sync, historical lock
+
+**The sync bug.** `WeeklySchedule` owned its own `weekly_schedule` fetch and upsert;
+`Dashboard` separately fetched only *today's* row for its default-plan logic. Two independent
+copies of the same underlying state, so assigning a plan via the This Week popover never
+reached the plan dropdown below it (or vice versa) without a reload. Fixed by lifting
+`scheduleByDow` (all 7 days, not just today) and a single `assignPlan(dow, planId)` up into
+`Dashboard`; `WeeklySchedule` is now a controlled component (`plans` / `scheduleByDow` /
+`onAssign` props, no fetch or upsert of its own). The plan dropdown's `onChange` now calls the
+exact same `assignPlan` the popover uses — picking a plan there upserts `weekly_schedule` for
+today's `day_of_week` too, so both surfaces read the one shared value and either one updates
+the other immediately.
+
+**Deliberately not unified:** the dropdown has no "Rest" option. This Week's popover offers
+Rest because *scheduling* a day as Rest is meaningful; the dropdown is specifically "what to
+start today," and you can't start Rest. Picking Rest stays a This-Week-only action, same as
+before — the sync fix applies to real plan selections, which is what was actually broken.
+
+**Historical lock.** For any date this week with a *completed* (`completed_at is not null`)
+`workout_sessions` row, that day's cell now shows the plan actually recorded on that session
+(`workout_sessions.plan_id`), not `weekly_schedule`, and renders as a plain non-interactive
+div (small lock icon, no popover) instead of a `Menu.Trigger`. Scoped to the This Week strip
+only, per spec — the plan dropdown stays independently editable even after today's session
+completes, since nothing asked for blocking a second same-day session and the app already
+allowed that.
+
+## Section B — Resumable workout sessions
+
+`workout_sessions.accumulated_seconds` / `last_resumed_at` (added outside this session, columns
+confirmed live via the same bad-column-probe technique used earlier for `weekly_schedule` etc.)
+now replace derive-from-`started_at` as the timer's source of truth:
+
+- **Start:** inserts `accumulated_seconds: 0, last_resumed_at: now()`.
+- **Pause** (manual button or the existing auto-pause-on-tab-hidden): folds elapsed time into
+  `accumulated_seconds`, clears `last_resumed_at`, in the DB and locally.
+- **Resume:** sets `last_resumed_at = now()` again, DB and locally.
+- **Reload/reopen:** seeds straight from the DB (`accumulated_seconds` + `now() - last_resumed_at`
+  if still running) instead of recomputing from `started_at` — a paused session stays paused
+  and at the right elapsed time across a real page reload, not just a re-render.
+- **Finish:** folds the final delta into `accumulated_seconds` one more time (through the
+  existing sanity cap) as the resting value, matching `total_duration_seconds`.
+
+`pauseTimer`/`resumeTimer` read from refs (not the state closures) so they stay correct when
+called from the visibility-change listener, same reasoning as the auto-pause fix from the prior
+pass — extended here to also mean "correct" now includes "matches what's in the DB."
+
+**Continue Workout.** Dashboard checks for a `workout_sessions` row for today with
+`completed_at is null`; if found, the button reads "Continue Workout" and navigates to that
+exact session id — no new session/session_exercises/session_sets created. Also pre-selects that
+session's `plan_id` so the dropdown and exercise preview reflect what's actually in progress
+rather than whatever `weekly_schedule` would otherwise default to. The plan dropdown is disabled
+while a session is in progress (own judgment call, not spelled out in the spec — changing what
+"today" is assigned while mid-workout didn't seem like it should be encouraged, and it doesn't
+conflict with Section A's rule that only *completed* sessions lock This Week).
+
+**Countdown.** 3-2-1-Go overlay, one second per step, shown only when `accumulated_seconds === 0`
+on load (a true first start — never paused before). The clock itself doesn't start until the
+countdown finishes (`resumeTimer()` fires at the end), so the ~4s of ceremony is never counted
+as workout time. Continuing an in-progress session (`accumulated_seconds > 0`) skips it entirely
+regardless of how the page was reached (Continue Workout button or a hard reload).
+
+## Verification
+
+Both sections driven end-to-end locally via Playwright (no live push until both passed clean):
+
+- **Section A:** fresh account → assigned a plan via This Week → dropdown updated with no
+  reload → changed the dropdown to a different plan → This Week's cell updated with no reload →
+  started and completed a full session → confirmed today's This Week cell became a
+  non-interactive, lock-icon'd div showing the plan actually used, dropdown unaffected.
+- **Section B:** first start showed the countdown, timer began only after it finished; paused
+  mid-session (confirmed frozen for 2 real seconds); navigated away via client-side routing
+  (not a reload) without resuming; Dashboard showed "Continue Workout"; continuing skipped the
+  countdown and resumed at the exact paused value; resumed, let it run, then did a genuine hard
+  `page.reload()` — timer continued growing from the DB-backed value rather than resetting,
+  confirming recovery doesn't depend on React state surviving the reload.
+
+Zero console errors across every run. `tsc -b` and `npm run build` clean throughout.
