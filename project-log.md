@@ -482,3 +482,44 @@ Both sections driven end-to-end locally via Playwright (no live push until both 
   confirming recovery doesn't depend on React state surviving the reload.
 
 Zero console errors across every run. `tsc -b` and `npm run build` clean throughout.
+
+---
+
+# Follow-up: calendar status correctness + per-day session breakdown
+
+**Root cause.** `WorkoutCalendar`'s status derivation pooled every `session_sets` row across
+*all* `workout_sessions` sharing a date into one flat array, then checked "are all of them
+completed." A date with a genuinely finished session plus a second (abandoned/test) session on
+the same date failed that pooled check — the abandoned session's pending sets dragged an
+otherwise-100%-complete day down to "Partial." Real data on this account right now (leftover
+QA sessions from the same evening) hit exactly this case.
+
+**Fix.** Status is now derived per-session, not pooled:
+- **Completed:** at least one session that date has every one of its sets marked `completed`.
+- **Partial:** no session is fully complete, but at least one set (any session, that date) is.
+- **No activity:** no completed sets at all that date.
+
+This is a deliberate redefinition of "Partial," not just a bugfix to the old wording — the
+original spec's "Partial" meant "a session exists but isn't fully done," which would still
+count a day as *no activity* here if the only sessions on it have zero completed sets (e.g. a
+workout started and immediately abandoned). The new rule requires actual completed-set
+evidence for "Partial," matching what was asked this pass.
+
+**Day detail (Section 3).** Each calendar cell is now a real clickable button; clicking opens a
+panel below the grid listing every session recorded that date — plan name, finished/not
+finished, `completed/total` sets, and the session id (truncated) so a specific row is
+identifiable for exactly the kind of debugging that motivated this fix. No extra query on
+click: the per-session detail was already being fetched and grouped for the status calculation
+above, just not surfaced before — the click handler only toggles which date's existing data is
+shown.
+
+**Verification.** Reproduced the actual bug shape with a disposable test account: two
+`workout_sessions` rows on the same date, one with all 6 sets (2 exercises × 3) completed, one
+with 1/6. Confirmed via `getComputedStyle` the day's dot renders solid green
+(`rgb(34,197,94)`), not amber, and that clicking it lists both sessions with their correct,
+independent counts (`6/6`, `1/6`). `tsc -b` and `npm run build` clean; zero console errors.
+
+**Task 2 (verifying the real account's `41f8aab5` session) could not be completed from this
+session** — the anon key is correctly blocked by RLS from reading another user's
+`workout_sessions`/`session_sets` rows, same constraint hit earlier in this project. A
+read-only SQL query was handed to the user to run directly in the Supabase SQL editor instead.
