@@ -87,17 +87,17 @@
 .dark {
     color-scheme: dark;
     --background: #111827;
-    --foreground: #F3F4F6;
+    --foreground: #F8FAFC;
     --card: #1F2937;
-    --card-foreground: #F3F4F6;
+    --card-foreground: #F8FAFC;
     --popover: #1F2937;
-    --popover-foreground: #F3F4F6;
+    --popover-foreground: #F8FAFC;
     --primary: #22C55E;
-    --primary-foreground: #F3F4F6;
+    --primary-foreground: #F8FAFC;
     --secondary: #1F2937;
     --secondary-foreground: #A3E635;
     --muted: #1F2937;
-    --muted-foreground: #9CA3AF;
+    --muted-foreground: #94A3B8;
     --accent: #A3E635;
     --accent-foreground: #111827;
     --destructive: oklch(0.704 0.191 22.216);

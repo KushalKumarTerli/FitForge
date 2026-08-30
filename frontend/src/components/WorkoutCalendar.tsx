@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -40,14 +41,38 @@ export function WorkoutCalendar() {
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  // Which month is being viewed — independent of "today," which stays pinned to the real
+  // current date (for the ring indicator) regardless of navigation.
+  const [viewedYear, setViewedYear] = useState(() => new Date().getFullYear())
+  const [viewedMonth, setViewedMonth] = useState(() => new Date().getMonth())
 
-  const now = new Date()
-  const year = now.getFullYear()
-  const month = now.getMonth()
+  const year = viewedYear
+  const month = viewedMonth
+
+  function goToPrevMonth() {
+    setSelectedDate(null)
+    if (month === 0) {
+      setViewedYear((y) => y - 1)
+      setViewedMonth(11)
+    } else {
+      setViewedMonth((m) => m - 1)
+    }
+  }
+
+  function goToNextMonth() {
+    setSelectedDate(null)
+    if (month === 11) {
+      setViewedYear((y) => y + 1)
+      setViewedMonth(0)
+    } else {
+      setViewedMonth((m) => m + 1)
+    }
+  }
 
   useEffect(() => {
     load()
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewedYear, viewedMonth])
 
   async function load() {
     setLoading(true)
@@ -120,15 +145,33 @@ export function WorkoutCalendar() {
   }
 
   const cells = getMonthCells(year, month)
-  const monthLabel = now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+  const monthLabel = new Date(year, month, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
   const todayStr = toDateStr(new Date())
 
   return (
-    <Card size="sm">
+    <Card>
       <CardHeader>
-        <div className="flex items-center justify-between gap-2">
-          <CardTitle className="font-heading text-sm">{monthLabel}</CardTitle>
-          <div className="flex items-center gap-2.5">
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center justify-between gap-2">
+            <button
+              type="button"
+              onClick={goToPrevMonth}
+              aria-label="Previous month"
+              className="flex size-6 items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground"
+            >
+              <ChevronLeft className="size-4" />
+            </button>
+            <CardTitle className="text-base font-semibold">{monthLabel}</CardTitle>
+            <button
+              type="button"
+              onClick={goToNextMonth}
+              aria-label="Next month"
+              className="flex size-6 items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground"
+            >
+              <ChevronRight className="size-4" />
+            </button>
+          </div>
+          <div className="flex items-center justify-center gap-2.5">
             {LEGEND.map((item) => (
               <span key={item.status} className="flex items-center gap-1 text-[0.65rem] text-muted-foreground">
                 <span
@@ -157,9 +200,9 @@ export function WorkoutCalendar() {
           </div>
         ) : (
           <>
-            <div className="mx-auto grid max-w-xs grid-cols-7 gap-1">
+            <div className="grid grid-cols-7 gap-1 sm:gap-1.5">
               {WEEKDAY_LABELS.map((label, i) => (
-                <div key={i} className="pb-0.5 text-center text-[0.6rem] font-medium text-muted-foreground">
+                <div key={i} className="pb-1 text-center text-xs font-medium text-muted-foreground">
                   {label}
                 </div>
               ))}
@@ -175,13 +218,13 @@ export function WorkoutCalendar() {
                     key={i}
                     onClick={() => setSelectedDate((prev) => (prev === dateStr ? null : dateStr))}
                     className={cn(
-                      'flex flex-col items-center gap-0.5 rounded-md py-0.5 outline-none transition-colors',
+                      'flex min-h-11 flex-col items-center justify-center gap-1 rounded-md py-1 outline-none transition-colors',
                       isSelected ? 'bg-muted' : 'hover:bg-muted/50'
                     )}
                   >
                     <span
                       className={cn(
-                        'flex size-5 items-center justify-center rounded-full text-[0.65rem] text-foreground',
+                        'flex size-7 items-center justify-center rounded-full text-xs text-foreground',
                         isToday && 'ring-2 ring-[#22C55E] ring-offset-1 ring-offset-card'
                       )}
                     >

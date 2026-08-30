@@ -6,7 +6,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 import { getTodayBounds, toDateStr } from '@/lib/date'
-import { AppHeader } from '@/components/AppHeader'
+import { AppShell } from '@/components/AppShell'
 import { VoiceInputButton } from '@/components/VoiceInputButton'
 
 const markdownComponents: Components = {
@@ -154,9 +154,7 @@ export default function Health() {
   }
 
   return (
-    <div className="min-h-svh bg-background">
-      <AppHeader />
-
+    <AppShell>
       <div className="mx-auto flex max-w-4xl flex-col gap-4 p-4 sm:p-6">
         <Card>
           <CardHeader>
@@ -244,6 +242,6 @@ export default function Health() {
           </CardContent>
         </Card>
       </div>
-    </div>
+    </AppShell>
   )
 }

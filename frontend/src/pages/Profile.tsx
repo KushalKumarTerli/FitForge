@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { AppHeader } from '@/components/AppHeader'
+import { AppShell } from '@/components/AppShell'
 
 type Profile = {
   full_name: string
@@ -143,9 +143,7 @@ export default function Profile() {
   }
 
   return (
-    <div className="min-h-svh bg-background">
-      <AppHeader />
-
+    <AppShell>
       <div className="mx-auto flex max-w-2xl flex-col gap-6 p-4 sm:p-6">
         {loading ? (
           <p className="text-sm text-muted-foreground">Loading…</p>
@@ -281,6 +279,6 @@ export default function Profile() {
           </>
         )}
       </div>
-    </div>
+    </AppShell>
   )
 }

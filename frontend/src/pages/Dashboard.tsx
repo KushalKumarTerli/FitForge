@@ -1,26 +1,21 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
-import { Button } from '@/components/ui/button'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
 import { WorkoutCalendar } from '@/components/WorkoutCalendar'
 import { DashboardStats } from '@/components/DashboardStats'
 import { WeeklySchedule } from '@/components/WeeklySchedule'
 import { NutritionTargets } from '@/components/NutritionTargets'
 import { QuickLog } from '@/components/QuickLog'
-import { AppHeader } from '@/components/AppHeader'
+import { DashboardHeader } from '@/components/DashboardHeader'
+import { TodaysWorkout } from '@/components/TodaysWorkout'
+import { AppShell } from '@/components/AppShell'
 import { toDateStr } from '@/lib/date'
 
 type Profile = {
   full_name: string
   weight_kg: number
   height_cm: number
+  avatar_url: string | null
 }
 
 type WorkoutPlan = {
@@ -66,6 +61,7 @@ function getGreeting(name: string) {
 
 export default function Dashboard() {
   const navigate = useNavigate()
+  const location = useLocation()
   const [profile, setProfile] = useState<Profile | null>(null)
   const [plans, setPlans] = useState<WorkoutPlan[]>([])
   const [selectedPlanId, setSelectedPlanId] = useState<string>('')
@@ -79,6 +75,12 @@ export default function Dashboard() {
     () => MOTIVATIONAL_LINES[Math.floor(Math.random() * MOTIVATIONAL_LINES.length)]
   )
   const [nutritionRefreshKey, setNutritionRefreshKey] = useState(0)
+  const [streak, setStreak] = useState(0)
+  // Today's set-completion, derived from whichever of today's sessions was started most
+  // recently — feeds Today's Workout's progress ring and per-exercise checkmarks. Real data
+  // from the same table already queried for hasWorkoutToday, not a second round-trip.
+  const [todayProgress, setTodayProgress] = useState({ completed: 0, total: 0 })
+  const [completedExerciseIds, setCompletedExerciseIds] = useState<Set<string>>(new Set())
 
   // The single shared source of truth for "what plan is assigned to which day of week" —
   // both the This Week strip and the plan dropdown below read and write this same state, so
@@ -103,13 +105,18 @@ export default function Dashboard() {
         { data: scheduleRows },
         { data: inProgress },
       ] = await Promise.all([
-        supabase.from('profiles').select('full_name, weight_kg, height_cm').eq('id', user.id).single(),
+        supabase.from('profiles').select('full_name, weight_kg, height_cm, avatar_url').eq('id', user.id).single(),
         supabase
           .from('workout_plans')
           .select('id, name, type, sequence_order')
           .or(`user_id.is.null,user_id.eq.${user.id}`)
           .order('sequence_order', { nullsFirst: false }),
-        supabase.from('workout_sessions').select('id').eq('user_id', user.id).eq('date', todayStr).limit(1),
+        supabase
+          .from('workout_sessions')
+          .select('id, session_exercises(exercise_id, session_sets(status))')
+          .eq('user_id', user.id)
+          .eq('date', todayStr)
+          .order('started_at', { ascending: false }),
         supabase.from('weekly_schedule').select('day_of_week, plan_id').eq('user_id', user.id),
         supabase
           .from('workout_sessions')
@@ -125,6 +132,26 @@ export default function Dashboard() {
       setProfile(profileData)
       setPlans(planData ?? [])
       setHasWorkoutToday((todaySessions?.length ?? 0) > 0)
+
+      // Progress ring + per-exercise checkmarks on Today's Workout reflect whichever of
+      // today's sessions was started most recently (same priority order as `inProgress` below).
+      const latestToday = todaySessions?.[0] as
+        | { session_exercises: { exercise_id: string; session_sets: { status: string }[] }[] }
+        | undefined
+      if (latestToday) {
+        const sets = (latestToday.session_exercises ?? []).flatMap((se) => se.session_sets ?? [])
+        setTodayProgress({ completed: sets.filter((s) => s.status === 'completed').length, total: sets.length })
+        setCompletedExerciseIds(
+          new Set(
+            (latestToday.session_exercises ?? [])
+              .filter((se) => (se.session_sets ?? []).length > 0 && se.session_sets.every((s) => s.status === 'completed'))
+              .map((se) => se.exercise_id)
+          )
+        )
+      } else {
+        setTodayProgress({ completed: 0, total: 0 })
+        setCompletedExerciseIds(new Set())
+      }
 
       const scheduleMap: Record<number, string | null> = {}
       for (const row of scheduleRows ?? []) scheduleMap[row.day_of_week] = row.plan_id
@@ -294,129 +321,87 @@ export default function Dashboard() {
     navigate('/workout', { state: { sessionId: inProgressSessionId } })
   }
 
-  return (
-    <div className="min-h-svh bg-background">
-      <AppHeader />
+  // The mobile bottom-nav "+" button navigates here with this state when Quick Log isn't
+  // already on screen (e.g. tapped from Health/Profile) — scroll to it once loaded, then clear
+  // the state so it doesn't re-fire on a later back-navigation to this same history entry.
+  // WorkoutCalendar/WeeklySchedule/NutritionTargets/QuickLog each fetch independently of this
+  // page's own `loading` flag, so the page is still growing taller for a bit after that flips
+  // false — re-issue the scroll a couple of times as that settles instead of firing once too
+  // early and landing short.
+  useEffect(() => {
+    if (!loading && (location.state as { scrollToQuickLog?: boolean } | null)?.scrollToQuickLog) {
+      const scroll = () => document.getElementById('quick-log')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      scroll()
+      const t1 = setTimeout(scroll, 400)
+      const t2 = setTimeout(scroll, 900)
+      navigate(location.pathname, { replace: true, state: {} })
+      return () => {
+        clearTimeout(t1)
+        clearTimeout(t2)
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading])
 
-      <div className="mx-auto flex max-w-4xl flex-col gap-6 p-4 sm:p-6">
+  return (
+    <AppShell>
+      <div className="mx-auto flex max-w-7xl flex-col gap-6 p-4 sm:p-6">
         {loading ? (
           <p className="text-sm text-muted-foreground">Loading…</p>
         ) : (
           <>
-            <DashboardStats />
+            <DashboardHeader
+              date={new Date().toLocaleDateString('en-US', {
+                weekday: 'long',
+                month: 'long',
+                day: 'numeric',
+                year: 'numeric',
+              })}
+              greeting={profile ? getGreeting(profile.full_name) : 'Welcome'}
+              motivationalLine={motivationalLine}
+              streak={streak}
+              avatarUrl={profile?.avatar_url ?? null}
+              fullName={profile?.full_name ?? ''}
+            />
+
+            <DashboardStats onStreakComputed={setStreak} />
+
             <WeeklySchedule plans={plans} scheduleByDow={scheduleByDow} onAssign={assignPlan} />
-            <WorkoutCalendar />
 
-            <Card>
-              <CardHeader>
-                <CardTitle>{profile ? getGreeting(profile.full_name) : 'Welcome'}</CardTitle>
-                <CardDescription>{motivationalLine}</CardDescription>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-3">
-                {isRestDay && (
-                  <p className="text-sm text-accent">Rest day — start a workout anyway if you want.</p>
-                )}
-                <div className="flex gap-2">
-                  {plans.length === 0 ? (
-                    <p className="flex-1 self-center text-sm text-muted-foreground">
-                      No workout plans available.
-                    </p>
-                  ) : (
-                    <select
-                      value={selectedPlanId}
-                      disabled={!!inProgressSessionId}
-                      onChange={(e) => {
-                        setSelectedPlanId(e.target.value)
-                        assignPlan(new Date().getDay(), e.target.value)
-                      }}
-                      className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50 dark:bg-input/30"
-                    >
-                      {plans.map((plan) => (
-                        <option key={plan.id} value={plan.id} className="bg-card text-foreground">
-                          {plan.name}
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="shrink-0"
-                    onClick={() => navigate('/plans/new')}
-                  >
-                    Create Plan
-                  </Button>
-                </div>
-                {nextUpPlan && (
-                  <p className="text-sm text-muted-foreground">Next up: {nextUpPlan.name}</p>
-                )}
-                {!hasWorkoutToday && (
-                  <p className="text-sm text-muted-foreground">
-                    Nothing logged yet today — your streak is waiting.
-                  </p>
-                )}
-                {!hasCustomPlans && (
-                  <p className="text-sm text-muted-foreground">
-                    Build a plan that's actually yours.{' '}
-                    <button
-                      type="button"
-                      onClick={() => navigate('/plans/new')}
-                      className="text-accent underline underline-offset-2"
-                    >
-                      Start here
-                    </button>
-                  </p>
-                )}
-              </CardContent>
-            </Card>
+            <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
+              <WorkoutCalendar />
+              <TodaysWorkout
+                plans={plans}
+                selectedPlanId={selectedPlanId}
+                onSelectPlan={(id) => {
+                  setSelectedPlanId(id)
+                  assignPlan(new Date().getDay(), id)
+                }}
+                planExercises={planExercises}
+                isRestDay={isRestDay}
+                nextUpPlan={nextUpPlan}
+                hasWorkoutToday={hasWorkoutToday}
+                hasCustomPlans={hasCustomPlans}
+                error={error}
+                starting={starting}
+                inProgressSessionId={inProgressSessionId}
+                todayProgress={todayProgress}
+                completedExerciseIds={completedExerciseIds}
+                onStart={handleStartWorkout}
+                onContinue={handleContinueWorkout}
+                onCreatePlan={() => navigate('/plans/new')}
+              />
+            </div>
 
-            {planExercises.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Exercises</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <ul className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                    {planExercises.map((pe) => (
-                      <li
-                        key={pe.exercise_id}
-                        className="flex items-center justify-between rounded-lg border border-border px-3 py-2"
-                      >
-                        <div>
-                          <p className="text-sm font-medium">{pe.exercises.name}</p>
-                          <p className="text-sm text-muted-foreground">{pe.exercises.muscle_group}</p>
-                        </div>
-                        <div className="text-right text-sm text-muted-foreground">
-                          <p>{pe.sets} sets</p>
-                          <p>
-                            {pe.exercises.tracking_type === 'reps'
-                              ? `${pe.target_reps?.join(', ')} reps`
-                              : `${pe.target_duration_seconds?.join(', ')} sec`}
-                          </p>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-
-                  {error && <p className="mt-3 text-sm text-destructive">{error}</p>}
-
-                  <Button
-                    className="mt-4 w-full"
-                    disabled={starting}
-                    onClick={inProgressSessionId ? handleContinueWorkout : handleStartWorkout}
-                  >
-                    {starting ? 'Starting…' : inProgressSessionId ? 'Continue Workout' : 'Start Workout'}
-                  </Button>
-                </CardContent>
-              </Card>
-            )}
-
-            <NutritionTargets refreshKey={nutritionRefreshKey} />
-            <QuickLog onMealLogged={() => setNutritionRefreshKey((k) => k + 1)} />
+            <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
+              <NutritionTargets refreshKey={nutritionRefreshKey} />
+              <div id="quick-log">
+                <QuickLog onMealLogged={() => setNutritionRefreshKey((k) => k + 1)} />
+              </div>
+            </div>
           </>
         )}
       </div>
-    </div>
+    </AppShell>
   )
 }

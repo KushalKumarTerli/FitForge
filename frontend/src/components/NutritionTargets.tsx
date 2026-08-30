@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
+import { Beef, Droplet, Wheat } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { RadialProgress } from '@/components/RadialProgress'
@@ -116,9 +117,27 @@ export function NutritionTargets({ refreshKey }: { refreshKey?: number } = {}) {
             </div>
 
             <div className="flex w-full flex-col gap-3">
-              <MacroBar label="Protein" value={totals.protein_g} target={targets.protein_g} color="#22C55E" />
-              <MacroBar label="Carbs" value={totals.carbs_g} target={targets.carbs_g} color="#F59E0B" />
-              <MacroBar label="Fats" value={totals.fat_g} target={targets.fat_g} color="#EF4444" />
+              <MacroBar
+                icon={<Beef className="size-3.5" />}
+                label="Protein"
+                value={totals.protein_g}
+                target={targets.protein_g}
+                color="#22C55E"
+              />
+              <MacroBar
+                icon={<Wheat className="size-3.5" />}
+                label="Carbs"
+                value={totals.carbs_g}
+                target={targets.carbs_g}
+                color="#F59E0B"
+              />
+              <MacroBar
+                icon={<Droplet className="size-3.5" />}
+                label="Fats"
+                value={totals.fat_g}
+                target={targets.fat_g}
+                color="#EF4444"
+              />
             </div>
           </div>
         )}
@@ -127,12 +146,27 @@ export function NutritionTargets({ refreshKey }: { refreshKey?: number } = {}) {
   )
 }
 
-function MacroBar({ label, value, target, color }: { label: string; value: number; target: number; color: string }) {
+function MacroBar({
+  icon,
+  label,
+  value,
+  target,
+  color,
+}: {
+  icon: ReactNode
+  label: string
+  value: number
+  target: number
+  color: string
+}) {
   const pct = target > 0 ? Math.min(100, Math.round((value / target) * 100)) : 0
   return (
     <div className="flex flex-col gap-1">
       <div className="flex items-center justify-between text-sm">
-        <span className="font-medium">{label}</span>
+        <span className="flex items-center gap-1.5 font-medium">
+          <span style={{ color }}>{icon}</span>
+          {label}
+        </span>
         <span className="text-muted-foreground">
           {Math.round(value)}g / {Math.round(target)}g · {pct}%
         </span>

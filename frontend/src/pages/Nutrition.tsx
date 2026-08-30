@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
-import { AppHeader } from '@/components/AppHeader'
+import { AppShell } from '@/components/AppShell'
 import { NutritionTrend } from '@/components/NutritionTrend'
 import { NutritionTargets } from '@/components/NutritionTargets'
 import { QuickLog } from '@/components/QuickLog'
@@ -18,9 +18,7 @@ export default function Nutrition() {
   const [nutritionRefreshKey, setNutritionRefreshKey] = useState(0)
 
   return (
-    <div className="min-h-svh bg-background">
-      <AppHeader />
-
+    <AppShell>
       <div className="mx-auto flex max-w-4xl flex-col gap-4 p-4 sm:p-6">
         <Card>
           <CardContent className="flex items-center gap-2">
@@ -33,6 +31,6 @@ export default function Nutrition() {
         <NutritionTargets refreshKey={nutritionRefreshKey} />
         <QuickLog onMealLogged={() => setNutritionRefreshKey((k) => k + 1)} />
       </div>
-    </div>
+    </AppShell>
   )
 }

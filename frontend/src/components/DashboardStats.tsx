@@ -37,7 +37,7 @@ function pctChange(today: number, yesterday: number | null) {
   return ((today - yesterday) / yesterday) * 100
 }
 
-export function DashboardStats() {
+export function DashboardStats({ onStreakComputed }: { onStreakComputed?: (streak: number) => void } = {}) {
   const [loading, setLoading] = useState(true)
   const [todayCalories, setTodayCalories] = useState(0)
   const [yesterdayCalories, setYesterdayCalories] = useState<number | null>(null)
@@ -45,9 +45,14 @@ export function DashboardStats() {
   const [yesterdayDuration, setYesterdayDuration] = useState<number | null>(null)
   const [streak, setStreak] = useState(0)
   const [consistency, setConsistency] = useState<{ done: number; total: number } | null>(null)
+  // Same 7 week-days DashboardStats already fetches scheduleByDow/weekSessionDates for, just
+  // kept per-day instead of collapsed to a single done/total pair — feeds the Weekly
+  // Consistency card's mini-bar row. No extra query.
+  const [weekBars, setWeekBars] = useState<{ scheduled: boolean; done: boolean }[]>([])
 
   useEffect(() => {
     load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   async function load() {
@@ -137,6 +142,7 @@ export function DashboardStats() {
       cursor.setDate(cursor.getDate() - 1)
     }
     setStreak(streakCount)
+    onStreakComputed?.(streakCount)
 
     const scheduleByDow = new Map<number, string | null>()
     for (const row of scheduleRows ?? []) scheduleByDow.set(row.day_of_week, row.plan_id)
@@ -144,15 +150,20 @@ export function DashboardStats() {
     const todayStr = toDateStr(today)
     let total = 0
     let done = 0
+    const bars: { scheduled: boolean; done: boolean }[] = []
     for (const dateStr of weekDates) {
       const dow = new Date(dateStr + 'T00:00:00').getDay()
       const planId = scheduleByDow.get(dow)
-      if (planId != null) {
+      const scheduled = planId != null
+      const dayDone = dateStr <= todayStr && weekSessionDates.has(dateStr)
+      if (scheduled) {
         total++
-        if (dateStr <= todayStr && weekSessionDates.has(dateStr)) done++
+        if (dayDone) done++
       }
+      bars.push({ scheduled, done: dayDone })
     }
     setConsistency(total > 0 ? { done, total } : null)
+    setWeekBars(bars)
 
     setLoading(false)
   }
@@ -196,11 +207,14 @@ export function DashboardStats() {
           label="Weekly Consistency"
           value={`${Math.round((consistency.done / consistency.total) * 100)}%`}
           sub={`${consistency.done} of ${consistency.total} days`}
+          bars={weekBars}
         />
       )}
     </div>
   )
 }
+
+const BAR_DAY_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
 
 function StatCard({
   icon,
@@ -208,12 +222,14 @@ function StatCard({
   value,
   pct,
   sub,
+  bars,
 }: {
   icon: ReactNode
   label: string
   value: string
   pct?: number | null
   sub?: string
+  bars?: { scheduled: boolean; done: boolean }[]
 }) {
   return (
     <Card>
@@ -230,6 +246,21 @@ function StatCard({
           </p>
         )}
         {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
+        {bars && bars.length === 7 && (
+          <div className="mt-1 flex items-end gap-1">
+            {bars.map((bar, i) => (
+              <div key={i} className="flex flex-1 flex-col items-center gap-0.5">
+                <div className="flex h-6 w-full items-end overflow-hidden rounded-sm bg-muted">
+                  <div
+                    className={cn('w-full rounded-sm', bar.done ? 'bg-primary' : bar.scheduled ? 'bg-muted-foreground/40' : 'bg-transparent')}
+                    style={{ height: bar.done ? '100%' : bar.scheduled ? '35%' : '15%' }}
+                  />
+                </div>
+                <span className="text-[0.6rem] text-muted-foreground">{BAR_DAY_LABELS[i]}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </CardContent>
     </Card>
   )

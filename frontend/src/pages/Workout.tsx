@@ -13,7 +13,7 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
-import { AppHeader } from '@/components/AppHeader'
+import { AppShell } from '@/components/AppShell'
 import { RadialProgress } from '@/components/RadialProgress'
 import { MAX_REASONABLE_SESSION_SECONDS } from '@/lib/workout'
 
@@ -354,8 +354,7 @@ export default function Workout() {
 
   if (!sessionId) {
     return (
-      <div className="min-h-svh bg-background">
-        <AppHeader />
+      <AppShell>
         <div className="mx-auto max-w-4xl p-4 sm:p-6">
           <Card>
             <CardHeader>
@@ -367,25 +366,23 @@ export default function Workout() {
             </CardContent>
           </Card>
         </div>
-      </div>
+      </AppShell>
     )
   }
 
   if (loading) {
     return (
-      <div className="min-h-svh bg-background">
-        <AppHeader />
+      <AppShell>
         <div className="mx-auto max-w-4xl p-4 sm:p-6">
           <p className="text-sm text-muted-foreground">Loading…</p>
         </div>
-      </div>
+      </AppShell>
     )
   }
 
   if (summary) {
     return (
-      <div className="min-h-svh bg-background">
-        <AppHeader />
+      <AppShell>
         <div className="mx-auto max-w-4xl p-4 sm:p-6">
           <Card>
             <CardHeader>
@@ -407,14 +404,12 @@ export default function Workout() {
             </CardContent>
           </Card>
         </div>
-      </div>
+      </AppShell>
     )
   }
 
   return (
-    <div className="min-h-svh bg-background">
-      <AppHeader />
-
+    <AppShell>
       {countdownActive && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
           <AnimatePresence mode="wait">
@@ -552,6 +547,6 @@ export default function Workout() {
         {finishing ? 'Finishing…' : 'Finish Workout'}
       </Button>
       </div>
-    </div>
+    </AppShell>
   )
 }
