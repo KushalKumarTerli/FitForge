@@ -81,9 +81,12 @@ app.post("/api/chat", async (req, res) => {
     }
     const token = authHeader.split(' ')[1];
 
-    const { message, topic, today_start, today_end, today_date } = req.body;
+    const { message, topic, today_start, today_end, today_date, thread_id } = req.body;
     if (!message || typeof message !== 'string') {
         return res.status(400).json({ error: "valid message is required" });
+    }
+    if (!thread_id || typeof thread_id !== 'string') {
+        return res.status(400).json({ error: "valid thread_id is required" });
     }
 
     try {
@@ -103,6 +106,17 @@ app.post("/api/chat", async (req, res) => {
         const startIso = today_start || fallbackStart.toISOString();
         const endIso = today_end || fallbackEnd.toISOString();
         const dateStr = today_date || fallbackStart.toISOString().slice(0, 10);
+
+        // Prior turns in this thread, oldest first, so the model actually has memory of the
+        // conversation instead of treating every message as a fresh one-shot question. This
+        // request's own `message` isn't inserted into health_chat until after we reply (the
+        // frontend does that), so it's naturally excluded here — no duplication risk.
+        const { data: priorMessages } = await supabase
+            .from('health_chat')
+            .select('role, content')
+            .eq('thread_id', thread_id)
+            .order('created_at', { ascending: true });
+        const conversationHistory = (priorMessages ?? []).map((m) => ({ role: m.role, content: m.content }));
 
         const { data: profile } = await supabase.from('profiles').select('weight_kg, height_cm').single();
         const { data: todaySessions } = await supabase
@@ -138,6 +152,7 @@ app.post("/api/chat", async (req, res) => {
                 model: "mistral-small-latest",
                 messages: [
                     { role: 'system', content: `You are a supportive fitness and health assistant. Use this context to personalize your answer:\n${contextSummary}\nWhen asked about today's calories, protein, or calories burned, quote the precomputed "Today's totals" / "Total calories burned today" figures above exactly — do not recompute or re-sum them yourself from the raw workout/meal lists.` },
+                    ...conversationHistory,
                     { role: 'user', content: message }
                 ]
             }),

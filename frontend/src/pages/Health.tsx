@@ -1,246 +1,215 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react'
-import ReactMarkdown, { type Components } from 'react-markdown'
+import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { cn } from '@/lib/utils'
-import { getTodayBounds, toDateStr } from '@/lib/date'
 import { AppShell } from '@/components/AppShell'
-import { VoiceInputButton } from '@/components/VoiceInputButton'
+import { ChatThreadList, type ChatThreadRow } from '@/components/ChatThreadList'
+import { HealthChatThread } from '@/components/HealthChatThread'
+import { TopicPicker, type Topic } from '@/components/TopicPicker'
+import { cn } from '@/lib/utils'
 
-const markdownComponents: Components = {
-  h1: ({ node, ...props }) => <h3 className="mt-3 mb-1 text-base font-semibold first:mt-0" {...props} />,
-  h2: ({ node, ...props }) => <h3 className="mt-3 mb-1 text-base font-semibold first:mt-0" {...props} />,
-  h3: ({ node, ...props }) => <h3 className="mt-3 mb-1 text-sm font-semibold first:mt-0" {...props} />,
-  p: ({ node, ...props }) => <p className="mb-2 last:mb-0" {...props} />,
-  ul: ({ node, ...props }) => <ul className="mb-2 list-disc space-y-1 pl-5 last:mb-0" {...props} />,
-  ol: ({ node, ...props }) => <ol className="mb-2 list-decimal space-y-1 pl-5 last:mb-0" {...props} />,
-  li: ({ node, ...props }) => <li {...props} />,
-  strong: ({ node, ...props }) => <strong className="font-semibold" {...props} />,
-  a: ({ node, ...props }) => (
-    <a className="underline underline-offset-2" target="_blank" rel="noreferrer" {...props} />
-  ),
-}
-
-type ChatMessage = {
+type ThreadRecord = {
   id: string
-  role: 'user' | 'assistant'
-  content: string
+  title: string | null
   topic: string | null
-  created_at: string
+  updated_at: string
 }
-
-const TOPICS: { label: string; starter: string }[] = [
-  { label: 'Heart Health', starter: "What can I do to improve my heart health based on my recent activity?" },
-  { label: 'Testosterone Booster', starter: 'What can I do to naturally support healthy testosterone levels?' },
-  { label: 'Strength Building', starter: 'How can I build strength more effectively with my current routine?' },
-  { label: 'Mental Health', starter: 'What can I do to support my mental health alongside my fitness routine?' },
-  { label: 'Brain Sharpener', starter: 'What can I do to improve my focus and mental sharpness?' },
-  { label: 'Fertility', starter: 'What lifestyle changes can help support fertility?' },
-  { label: 'Strength Training', starter: 'How should I structure my strength training for better results?' },
-  { label: 'Sexual Health', starter: 'What can I do to improve my sexual health?' },
-  { label: 'Hygiene', starter: 'What hygiene habits should I prioritize as an active person?' },
-  { label: 'Skin Care', starter: 'What skincare routine would help with my active lifestyle?' },
-  { label: 'Hair Care', starter: 'What can I do to keep my hair healthy while working out regularly?' },
-  { label: 'Facial Shape', starter: 'What exercises or habits can help improve my facial definition?' },
-]
 
 export default function Health() {
-  const [messages, setMessages] = useState<ChatMessage[]>([])
-  const [loadingHistory, setLoadingHistory] = useState(true)
-  const [draft, setDraft] = useState('')
-  const [topic, setTopic] = useState<string | null>(null)
-  const [sending, setSending] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const bottomRef = useRef<HTMLDivElement>(null)
+  const [userId, setUserId] = useState<string | null>(null)
+  const [threads, setThreads] = useState<ChatThreadRow[]>([])
+  const [loadingThreads, setLoadingThreads] = useState(true)
+  const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null)
+  const [pendingInitialDraft, setPendingInitialDraft] = useState<string | undefined>(undefined)
+  const [editMode, setEditMode] = useState(false)
+  const [selectedForDelete, setSelectedForDelete] = useState<Set<string>>(new Set())
 
   useEffect(() => {
-    loadHistory()
+    loadThreads()
   }, [])
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, sending])
-
-  async function loadHistory() {
-    setLoadingHistory(true)
-    const { data } = await supabase
-      .from('health_chat')
-      .select('id, role, content, topic, created_at')
-      .order('created_at', { ascending: true })
-    setMessages(data ?? [])
-    setLoadingHistory(false)
-  }
-
-  function handleTopicClick(t: { label: string; starter: string }) {
-    setTopic(t.label)
-    setDraft(t.starter)
-  }
-
-  async function handleSend(e: FormEvent) {
-    e.preventDefault()
-    const messageText = draft.trim()
-    if (!messageText || sending) return
-
-    setSending(true)
-    setError(null)
-    setDraft('')
-
+  async function loadThreads() {
+    setLoadingThreads(true)
     const {
-      data: { session },
-    } = await supabase.auth.getSession()
-
-    if (!session) {
-      setError('You need to be logged in.')
-      setSending(false)
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) {
+      setLoadingThreads(false)
       return
     }
+    setUserId(user.id)
 
-    const optimisticId = `temp-${Date.now()}`
-    setMessages((prev) => [
-      ...prev,
-      { id: optimisticId, role: 'user', content: messageText, topic, created_at: new Date().toISOString() },
-    ])
+    const { data: threadRows } = await supabase
+      .from('chat_threads')
+      .select('id, title, topic, updated_at')
+      .eq('user_id', user.id)
+      .order('updated_at', { ascending: false })
 
-    try {
-      const { start: today_start, end: today_end } = getTodayBounds()
-      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/chat`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({
-          message: messageText,
-          topic,
-          today_start,
-          today_end,
-          today_date: toDateStr(new Date()),
-        }),
-      })
-
-      if (!response.ok) {
-        throw new Error(`Chat request failed (${response.status})`)
+    const ids = (threadRows ?? []).map((t) => t.id)
+    let previewByThread = new Map<string, string>()
+    if (ids.length > 0) {
+      // Most-recent message per thread, computed client-side rather than relying on a nested
+      // per-parent embed limit: fetch every message for these threads ordered newest-first,
+      // then keep only the first occurrence per thread_id.
+      const { data: recentMessages } = await supabase
+        .from('health_chat')
+        .select('thread_id, content, created_at')
+        .in('thread_id', ids)
+        .order('created_at', { ascending: false })
+      for (const m of recentMessages ?? []) {
+        if (!previewByThread.has(m.thread_id)) previewByThread.set(m.thread_id, m.content)
       }
-
-      const data = await response.json()
-      const assistantContent: string = data.content
-
-      const { data: userRow } = await supabase
-        .from('health_chat')
-        .insert({ user_id: session.user.id, topic, role: 'user', content: messageText })
-        .select()
-        .single()
-
-      const { data: assistantRow } = await supabase
-        .from('health_chat')
-        .insert({ user_id: session.user.id, topic, role: 'assistant', content: assistantContent })
-        .select()
-        .single()
-
-      setMessages((prev) => {
-        const withoutOptimistic = prev.filter((m) => m.id !== optimisticId)
-        const additions = [userRow, assistantRow].filter(Boolean) as ChatMessage[]
-        return [...withoutOptimistic, ...additions]
-      })
-    } catch {
-      setError('Could not get a response. Please try again.')
-      setMessages((prev) => prev.filter((m) => m.id !== optimisticId))
-      setDraft(messageText)
-    } finally {
-      setSending(false)
     }
+
+    setThreads(
+      ((threadRows ?? []) as ThreadRecord[]).map((t) => ({
+        ...t,
+        preview: previewByThread.get(t.id) ?? null,
+      }))
+    )
+    setLoadingThreads(false)
   }
+
+  async function handleNewChat(topic?: Topic) {
+    if (!userId) return
+    setEditMode(false)
+    setSelectedForDelete(new Set())
+
+    const { data: inserted } = await supabase
+      .from('chat_threads')
+      .insert({ user_id: userId, topic: topic?.label ?? null })
+      .select('id, title, topic, updated_at')
+      .single()
+
+    if (!inserted) return
+
+    setThreads((prev) => [{ ...inserted, preview: null }, ...prev])
+    setSelectedThreadId(inserted.id)
+    setPendingInitialDraft(topic?.starter)
+  }
+
+  function handleSelectThread(id: string) {
+    setSelectedThreadId(id)
+    setPendingInitialDraft(undefined)
+  }
+
+  function handleToggleEditMode() {
+    setEditMode((e) => !e)
+    setSelectedForDelete(new Set())
+  }
+
+  function handleToggleSelectForDelete(id: string) {
+    setSelectedForDelete((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  async function handleDeleteSelected() {
+    if (!userId || selectedForDelete.size === 0) return
+    const ids = [...selectedForDelete]
+    const confirmed = window.confirm(`Delete ${ids.length} chat${ids.length === 1 ? '' : 's'}? This can't be undone.`)
+    if (!confirmed) return
+
+    const { error } = await supabase.from('chat_threads').delete().in('id', ids).eq('user_id', userId)
+    if (error) return
+
+    setThreads((prev) => prev.filter((t) => !ids.includes(t.id)))
+    if (selectedThreadId && ids.includes(selectedThreadId)) setSelectedThreadId(null)
+    setSelectedForDelete(new Set())
+    setEditMode(false)
+  }
+
+  function handleThreadUpdated(threadId: string, patch: { title?: string; updated_at: string; preview: string }) {
+    setThreads((prev) => {
+      const next = prev.map((t) => (t.id === threadId ? { ...t, ...patch } : t))
+      next.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
+      return next
+    })
+  }
+
+  const selectedThread = threads.find((t) => t.id === selectedThreadId) ?? null
 
   return (
     <AppShell>
-      <div className="mx-auto flex max-w-4xl flex-col gap-4 p-4 sm:p-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="font-heading text-3xl">What would you want me to suggest 😊</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
-              {TOPICS.map((t) => (
-                <button
-                  key={t.label}
-                  type="button"
-                  onClick={() => handleTopicClick(t)}
-                  className={cn(
-                    'rounded-lg border-2 px-3 py-2 text-sm font-medium transition-colors',
-                    topic === t.label
-                      ? 'border-accent bg-accent text-accent-foreground'
-                      : 'border-border bg-muted/40 text-foreground hover:border-ring hover:bg-muted'
-                  )}
-                >
-                  {t.label}
-                </button>
-              ))}
+      <div className="mx-auto max-w-6xl p-4 sm:p-6">
+        <div className="mb-4 flex flex-col gap-1">
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">Health Coach</h1>
+          <p className="text-sm text-muted-foreground">Ask anything about your health and fitness.</p>
+        </div>
+
+        {/*
+          Each pane's component is mounted exactly once — only the wrapping div's visibility
+          is responsive. Mounting HealthChatThread/ChatThreadList twice (once per breakpoint)
+          would double their data fetches and let two independent instances of the same thread
+          drift out of sync with each other.
+        */}
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[280px_1fr_240px]">
+          {/* Column 1: topic grid (mobile hub only) + thread list (hidden on mobile once a
+              thread is open; always visible on desktop) */}
+          <div className={cn('flex flex-col gap-4', selectedThread ? 'hidden lg:flex' : 'flex')}>
+            <div className="lg:hidden">
+              <Card>
+                <CardContent>
+                  <TopicPicker onSelectTopic={(t) => handleNewChat(t)} variant="grid" />
+                </CardContent>
+              </Card>
             </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="flex flex-col gap-3">
-            <div className="flex max-h-[28rem] min-h-40 flex-col gap-3 overflow-y-auto py-2">
-              {loadingHistory ? (
-                <p className="text-sm text-muted-foreground">Loading…</p>
-              ) : messages.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  Pick a topic above or just ask a question to get started.
-                </p>
-              ) : (
-                messages.map((m) => (
-                  <div
-                    key={m.id}
-                    className={cn('flex', m.role === 'user' ? 'justify-end' : 'justify-start')}
-                  >
-                    {m.role === 'user' ? (
-                      <div className="max-w-[85%] rounded-xl bg-primary px-3 py-2 text-sm whitespace-pre-wrap text-primary-foreground">
-                        {m.content}
-                      </div>
-                    ) : (
-                      <div className="max-w-[95%] text-sm text-foreground">
-                        <ReactMarkdown components={markdownComponents}>{m.content}</ReactMarkdown>
-                      </div>
-                    )}
-                  </div>
-                ))
-              )}
-              {sending && (
-                <div className="flex justify-start">
-                  <div className="flex items-center gap-1 px-1 py-2">
-                    <span className="size-2 animate-pulse rounded-full bg-muted-foreground [animation-delay:0ms]" />
-                    <span className="size-2 animate-pulse rounded-full bg-muted-foreground [animation-delay:150ms]" />
-                    <span className="size-2 animate-pulse rounded-full bg-muted-foreground [animation-delay:300ms]" />
-                  </div>
-                </div>
-              )}
-              <div ref={bottomRef} />
-            </div>
-
-            {error && <p className="text-sm text-destructive">{error}</p>}
-
-            <form onSubmit={handleSend} className="flex flex-col gap-2">
-              <div className="relative">
-                <Textarea
-                  placeholder="Tell me what's your doubt....!"
-                  value={draft}
-                  onChange={(e) => setDraft(e.target.value)}
-                  disabled={sending}
-                  className="pr-10"
+            <Card>
+              <CardContent>
+                <ChatThreadList
+                  threads={threads}
+                  loading={loadingThreads}
+                  selectedThreadId={selectedThreadId}
+                  onSelectThread={handleSelectThread}
+                  onNewChat={() => handleNewChat()}
+                  editMode={editMode}
+                  onToggleEditMode={handleToggleEditMode}
+                  selectedForDelete={selectedForDelete}
+                  onToggleSelectForDelete={handleToggleSelectForDelete}
+                  onDeleteSelected={handleDeleteSelected}
                 />
-                <div className="absolute top-1.5 right-1.5">
-                  <VoiceInputButton onResult={(text) => setDraft(text)} />
-                </div>
-              </div>
-              <Button type="submit" disabled={sending || !draft.trim()}>
-                {sending ? 'Sending…' : 'Send'}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Column 2: active thread, or an empty state — mobile only when a thread is
+              selected; always visible on desktop */}
+          <div className={cn(selectedThread ? 'block' : 'hidden', 'lg:block')}>
+            <Card className={cn(!selectedThread && 'flex h-full items-center justify-center')}>
+              <CardContent className={cn('w-full', !selectedThread && 'flex flex-col items-center gap-3 text-center')}>
+                {selectedThread ? (
+                  <HealthChatThread
+                    threadId={selectedThread.id}
+                    threadTitle={selectedThread.title}
+                    topic={selectedThread.topic}
+                    initialDraft={pendingInitialDraft}
+                    onBack={() => setSelectedThreadId(null)}
+                    onThreadUpdated={handleThreadUpdated}
+                  />
+                ) : (
+                  <>
+                    <p className="text-sm text-muted-foreground">Select a chat or start a new one.</p>
+                    <Button type="button" size="sm" onClick={() => handleNewChat()}>
+                      New Chat
+                    </Button>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Column 3: topics rail — desktop only */}
+          <div className="hidden lg:block">
+            <Card>
+              <CardContent>
+                <TopicPicker onSelectTopic={(t) => handleNewChat(t)} variant="rail" />
+              </CardContent>
+            </Card>
+          </div>
+        </div>
       </div>
     </AppShell>
   )
