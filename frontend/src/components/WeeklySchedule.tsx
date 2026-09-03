@@ -181,7 +181,7 @@ export function WeeklySchedule({ plans, scheduleByDow, onAssign }: WeeklySchedul
                       <Menu.Popup className="max-h-[240px] min-w-36 overflow-y-auto rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-lg outline-none">
                         <Menu.Item
                           onClick={() => handleAssign(dow, null)}
-                          className="cursor-pointer rounded-md px-3 py-2 text-sm outline-none data-[highlighted]:bg-muted"
+                          className="cursor-pointer rounded-md px-3 py-2 text-sm outline-none data-[highlighted]:bg-gradient-to-r data-[highlighted]:from-primary/15 data-[highlighted]:to-accent/10"
                         >
                           Rest
                         </Menu.Item>
@@ -189,7 +189,7 @@ export function WeeklySchedule({ plans, scheduleByDow, onAssign }: WeeklySchedul
                           <Menu.Item
                             key={plan.id}
                             onClick={() => handleAssign(dow, plan.id)}
-                            className="cursor-pointer rounded-md px-3 py-2 text-sm outline-none data-[highlighted]:bg-muted"
+                            className="cursor-pointer rounded-md px-3 py-2 text-sm outline-none data-[highlighted]:bg-gradient-to-r data-[highlighted]:from-primary/15 data-[highlighted]:to-accent/10"
                           >
                             {plan.name}
                           </Menu.Item>

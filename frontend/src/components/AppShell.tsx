@@ -76,13 +76,15 @@ export function AppShell({ children }: { children: ReactNode }) {
   const navButtonClass = (active: boolean) =>
     cn(
       'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium outline-none transition-colors',
-      active ? 'bg-primary/15 text-primary' : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+      active
+        ? 'bg-primary/15 text-primary'
+        : 'text-muted-foreground hover:bg-gradient-to-r hover:from-primary/15 hover:to-accent/10 hover:text-foreground'
     )
 
   return (
     <div className="min-h-svh bg-background">
       {/* Desktop sidebar */}
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col border-r border-border bg-card/40 lg:flex">
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col border-r border-border bg-card lg:flex">
         <button
           type="button"
           onClick={() => navigate('/')}
@@ -155,14 +157,14 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <Menu.Popup className="min-w-40 rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-lg outline-none">
                   <Menu.Item
                     onClick={() => navigate('/profile')}
-                    className="flex cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-sm outline-none data-[highlighted]:bg-muted"
+                    className="flex cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-sm outline-none data-[highlighted]:bg-gradient-to-r data-[highlighted]:from-primary/15 data-[highlighted]:to-accent/10"
                   >
                     <UserIcon className="size-4" />
                     Profile
                   </Menu.Item>
                   <Menu.Item
                     onClick={handleLogout}
-                    className="flex cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-sm text-destructive outline-none data-[highlighted]:bg-muted"
+                    className="flex cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-sm text-destructive outline-none data-[highlighted]:bg-destructive/10"
                   >
                     <LogOut className="size-4" />
                     Logout

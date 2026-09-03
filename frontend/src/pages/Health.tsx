@@ -6,6 +6,7 @@ import { AppShell } from '@/components/AppShell'
 import { ChatThreadList, type ChatThreadRow } from '@/components/ChatThreadList'
 import { HealthChatThread } from '@/components/HealthChatThread'
 import { TopicPicker, type Topic } from '@/components/TopicPicker'
+import { HealthTip } from '@/components/HealthTip'
 import { cn } from '@/lib/utils'
 
 type ThreadRecord = {
@@ -150,12 +151,13 @@ export default function Health() {
           {/* Column 1: topic grid (mobile hub only) + thread list (hidden on mobile once a
               thread is open; always visible on desktop) */}
           <div className={cn('flex flex-col gap-4', selectedThread ? 'hidden lg:flex' : 'flex')}>
-            <div className="lg:hidden">
+            <div className="flex flex-col gap-4 lg:hidden">
               <Card>
                 <CardContent>
                   <TopicPicker onSelectTopic={(t) => handleNewChat(t)} variant="grid" />
                 </CardContent>
               </Card>
+              <HealthTip />
             </div>
             <Card>
               <CardContent>
@@ -182,6 +184,11 @@ export default function Health() {
               <CardContent className={cn('w-full', !selectedThread && 'flex flex-col items-center gap-3 text-center')}>
                 {selectedThread ? (
                   <HealthChatThread
+                    // Force a fresh mount per thread — without this, switching from one
+                    // already-open thread to a newly-created one (e.g. clicking another topic)
+                    // reuses the same component instance, and useState(initialDraft) only
+                    // evaluates on first mount, so the new starter text never appears.
+                    key={selectedThread.id}
                     threadId={selectedThread.id}
                     threadTitle={selectedThread.title}
                     topic={selectedThread.topic}
@@ -201,13 +208,14 @@ export default function Health() {
             </Card>
           </div>
 
-          {/* Column 3: topics rail — desktop only */}
-          <div className="hidden lg:block">
+          {/* Column 3: topics rail + health tip — desktop only */}
+          <div className="hidden flex-col gap-4 lg:flex">
             <Card>
               <CardContent>
                 <TopicPicker onSelectTopic={(t) => handleNewChat(t)} variant="rail" />
               </CardContent>
             </Card>
+            <HealthTip />
           </div>
         </div>
       </div>
