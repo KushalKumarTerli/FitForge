@@ -19,7 +19,7 @@ export default function Nutrition() {
 
   return (
     <AppShell>
-      <div className="mx-auto flex max-w-4xl flex-col gap-4 p-4 sm:p-6">
+      <div className="mx-auto flex max-w-[1600px] flex-col gap-4 p-4 sm:p-6 lg:p-8">
         <Card>
           <CardContent className="flex items-center gap-2">
             <span className="text-lg">💡</span>

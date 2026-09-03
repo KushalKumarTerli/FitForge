@@ -1,10 +1,20 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { Menu } from '@base-ui/react/menu'
-import { Apple, Dumbbell, LogOut, MessageCircle, Plus, User as UserIcon } from 'lucide-react'
+import { Apple, ChevronsLeft, ChevronsRight, Dumbbell, LogOut, MessageCircle, Plus, User as UserIcon } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { NavAvatar } from '@/components/NavAvatar'
 import { cn } from '@/lib/utils'
+
+const SIDEBAR_COLLAPSED_KEY = 'fitforge:sidebar-collapsed'
+
+function getInitialCollapsed() {
+  try {
+    return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true'
+  } catch {
+    return false
+  }
+}
 
 function toDateStr(d: Date) {
   const year = d.getFullYear()
@@ -24,10 +34,19 @@ export function AppShell({ children }: { children: ReactNode }) {
   const location = useLocation()
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [hasRecentStreak, setHasRecentStreak] = useState(false)
+  const [collapsed, setCollapsed] = useState(getInitialCollapsed)
 
   useEffect(() => {
     load()
   }, [])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(collapsed))
+    } catch {
+      // ignore — collapsed state just won't persist across reloads
+    }
+  }, [collapsed])
 
   async function load() {
     const {
@@ -76,6 +95,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const navButtonClass = (active: boolean) =>
     cn(
       'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium outline-none transition-colors',
+      collapsed && 'justify-center px-0',
       active
         ? 'bg-primary/15 text-primary'
         : 'text-muted-foreground hover:bg-gradient-to-r hover:from-primary/15 hover:to-accent/10 hover:text-foreground'
@@ -84,16 +104,21 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-svh bg-background">
       {/* Desktop sidebar */}
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col border-r border-border bg-card lg:flex">
+      <aside
+        className={cn(
+          'fixed inset-y-0 left-0 z-40 hidden flex-col border-r border-border bg-card transition-[width] duration-200 lg:flex',
+          collapsed ? 'w-16' : 'w-64'
+        )}
+      >
         <button
           type="button"
           onClick={() => navigate('/')}
-          className="flex items-center px-5 py-5 outline-none"
+          className={cn('flex items-center overflow-hidden py-5 outline-none', collapsed ? 'justify-center px-0' : 'px-5')}
         >
-          <img src="/logo.png" alt="FitForge" className="h-8 w-auto" />
+          <img src={collapsed ? '/favicon.png' : '/logo.png'} alt="FitForge" className="h-8 w-auto" />
         </button>
 
-        <nav className="mt-2 flex flex-col gap-1 px-3">
+        <nav className="flex flex-col gap-1 px-3">
           {NAV_ITEMS.map((item) => {
             const Icon = item.icon
             return (
@@ -101,10 +126,11 @@ export function AppShell({ children }: { children: ReactNode }) {
                 key={item.to}
                 type="button"
                 onClick={() => navigate(item.to)}
+                title={collapsed ? item.label : undefined}
                 className={navButtonClass(isActive(item.to))}
               >
-                <Icon className="size-4" />
-                {item.label}
+                <Icon className="size-4 shrink-0" />
+                {!collapsed && item.label}
               </button>
             )
           })}
@@ -112,22 +138,40 @@ export function AppShell({ children }: { children: ReactNode }) {
 
         <div className="flex-1" />
 
+        <button
+          type="button"
+          onClick={() => setCollapsed((c) => !c)}
+          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          className={cn(
+            'mx-3 mb-1 flex items-center gap-2 rounded-lg py-2 text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground',
+            collapsed ? 'justify-center px-0' : 'px-3'
+          )}
+        >
+          {collapsed ? <ChevronsRight className="size-4 shrink-0" /> : <ChevronsLeft className="size-4 shrink-0" />}
+          {!collapsed && <span className="text-sm font-medium">Collapse</span>}
+        </button>
+
         <div className="flex flex-col gap-1 border-t border-border px-3 py-3">
           <button
             type="button"
             onClick={() => navigate('/profile')}
+            title={collapsed ? 'Profile' : undefined}
             className={navButtonClass(isActive('/profile'))}
           >
             <NavAvatar avatarUrl={avatarUrl} />
-            Profile
+            {!collapsed && 'Profile'}
           </button>
           <button
             type="button"
             onClick={handleLogout}
-            className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-destructive outline-none transition-colors hover:bg-destructive/10"
+            title={collapsed ? 'Logout' : undefined}
+            className={cn(
+              'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-destructive outline-none transition-colors hover:bg-destructive/10',
+              collapsed && 'justify-center px-0'
+            )}
           >
-            <LogOut className="size-4" />
-            Logout
+            <LogOut className="size-4 shrink-0" />
+            {!collapsed && 'Logout'}
           </button>
         </div>
       </aside>
@@ -177,7 +221,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </header>
 
       {/* Content column */}
-      <div className="lg:pl-64">
+      <div className={cn('transition-[padding-left] duration-200', collapsed ? 'lg:pl-16' : 'lg:pl-64')}>
         <main className="pb-20 lg:pb-0">{children}</main>
       </div>
 

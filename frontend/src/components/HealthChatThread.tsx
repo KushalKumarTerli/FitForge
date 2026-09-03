@@ -29,6 +29,11 @@ type ChatMessage = {
   created_at: string
 }
 
+// chat_threads.title is NOT NULL, defaulting to this literal string at the DB level (confirmed
+// live — not null as originally assumed), so "hasn't been set yet" has to be checked against
+// this sentinel rather than falsiness.
+const DEFAULT_TITLE = 'New Chat'
+
 // First ~6 words of the opening message, client-side — no extra API call for something this
 // small a solution already covers.
 function deriveTitle(text: string) {
@@ -108,7 +113,6 @@ export function HealthChatThread({
       return
     }
 
-    const isFirstMessage = messages.length === 0
     const optimisticId = `temp-${Date.now()}`
     setMessages((prev) => [
       ...prev,
@@ -163,7 +167,11 @@ export function HealthChatThread({
         updated_at: nowIso,
         preview: assistantContent,
       }
-      if (isFirstMessage) patch.title = deriveTitle(messageText)
+      // Derive a title only while it's still the untouched default — covers the normal "first
+      // message" case, but also protects a manual rename made before any message was sent:
+      // once threadTitle is anything else (by either path), it sticks and this never
+      // overwrites it again.
+      if (!threadTitle || threadTitle === DEFAULT_TITLE) patch.title = deriveTitle(messageText)
 
       await supabase
         .from('chat_threads')

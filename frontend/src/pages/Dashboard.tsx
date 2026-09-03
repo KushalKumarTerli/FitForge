@@ -345,7 +345,7 @@ export default function Dashboard() {
 
   return (
     <AppShell>
-      <div className="mx-auto flex max-w-7xl flex-col gap-6 p-4 sm:p-6">
+      <div className="mx-auto flex max-w-[1600px] flex-col gap-6 p-4 sm:p-6 lg:p-8">
         {loading ? (
           <p className="text-sm text-muted-foreground">Loading…</p>
         ) : (

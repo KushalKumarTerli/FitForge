@@ -14,6 +14,7 @@ type ThreadRecord = {
   title: string | null
   topic: string | null
   updated_at: string
+  is_pinned: boolean
 }
 
 export default function Health() {
@@ -43,7 +44,7 @@ export default function Health() {
 
     const { data: threadRows } = await supabase
       .from('chat_threads')
-      .select('id, title, topic, updated_at')
+      .select('id, title, topic, updated_at, is_pinned')
       .eq('user_id', user.id)
       .order('updated_at', { ascending: false })
 
@@ -94,12 +95,12 @@ export default function Health() {
     const { data: inserted } = await supabase
       .from('chat_threads')
       .insert({ user_id: userId, topic: topic?.label ?? null })
-      .select('id, title, topic, updated_at')
+      .select('id, title, topic, updated_at, is_pinned')
       .single()
 
     if (!inserted) return
 
-    setThreads((prev) => [{ ...inserted, preview: null }, ...prev])
+    setThreads((prev) => [{ ...inserted, is_pinned: false, preview: null }, ...prev])
     setSelectedThreadId(inserted.id)
     setPendingInitialDraft(topic?.starter)
   }
@@ -138,6 +139,35 @@ export default function Health() {
     setEditMode(false)
   }
 
+  async function handleDeleteSingle(id: string) {
+    if (!userId) return
+    const confirmed = window.confirm("Delete this chat? This can't be undone.")
+    if (!confirmed) return
+
+    const { error } = await supabase.from('chat_threads').delete().eq('id', id).eq('user_id', userId)
+    if (error) return
+
+    setThreads((prev) => prev.filter((t) => t.id !== id))
+    if (selectedThreadId === id) setSelectedThreadId(null)
+  }
+
+  async function handleRenameThread(id: string, title: string) {
+    if (!userId) return
+    const { error } = await supabase.from('chat_threads').update({ title }).eq('id', id).eq('user_id', userId)
+    if (error) return
+    setThreads((prev) => prev.map((t) => (t.id === id ? { ...t, title } : t)))
+  }
+
+  async function handleTogglePin(id: string) {
+    if (!userId) return
+    const thread = threads.find((t) => t.id === id)
+    if (!thread) return
+    const nextPinned = !thread.is_pinned
+    const { error } = await supabase.from('chat_threads').update({ is_pinned: nextPinned }).eq('id', id).eq('user_id', userId)
+    if (error) return
+    setThreads((prev) => prev.map((t) => (t.id === id ? { ...t, is_pinned: nextPinned } : t)))
+  }
+
   function handleThreadUpdated(threadId: string, patch: { title?: string; updated_at: string; preview: string }) {
     setThreads((prev) => {
       const next = prev.map((t) => (t.id === threadId ? { ...t, ...patch } : t))
@@ -150,7 +180,7 @@ export default function Health() {
 
   return (
     <AppShell>
-      <div className="mx-auto max-w-6xl p-4 sm:p-6">
+      <div className="mx-auto max-w-[1600px] p-4 sm:p-6 lg:p-8">
         <div className="mb-4 flex flex-col gap-1">
           <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">Health Coach</h1>
           <p className="text-sm text-muted-foreground">Ask anything about your health and fitness.</p>
@@ -169,7 +199,7 @@ export default function Health() {
             <div className="flex flex-col gap-4 lg:hidden">
               <Card>
                 <CardContent>
-                  <TopicPicker onSelectTopic={(t) => handleNewChat(t)} variant="grid" />
+                  <TopicPicker onSelectTopic={(t) => handleNewChat(t)} />
                 </CardContent>
               </Card>
               <HealthTip />
@@ -187,6 +217,9 @@ export default function Health() {
                   selectedForDelete={selectedForDelete}
                   onToggleSelectForDelete={handleToggleSelectForDelete}
                   onDeleteSelected={handleDeleteSelected}
+                  onDeleteSingle={handleDeleteSingle}
+                  onRenameThread={handleRenameThread}
+                  onTogglePin={handleTogglePin}
                 />
               </CardContent>
             </Card>
@@ -229,7 +262,7 @@ export default function Health() {
           <div className="hidden flex-col gap-4 lg:flex">
             <Card>
               <CardContent>
-                <TopicPicker onSelectTopic={(t) => handleNewChat(t)} variant="rail" />
+                <TopicPicker onSelectTopic={(t) => handleNewChat(t)} />
               </CardContent>
             </Card>
             <HealthTip />
