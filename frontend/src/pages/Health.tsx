@@ -24,6 +24,7 @@ export default function Health() {
   const [pendingInitialDraft, setPendingInitialDraft] = useState<string | undefined>(undefined)
   const [editMode, setEditMode] = useState(false)
   const [selectedForDelete, setSelectedForDelete] = useState<Set<string>>(new Set())
+  const [openThreadSending, setOpenThreadSending] = useState(false)
 
   useEffect(() => {
     loadThreads()
@@ -75,6 +76,20 @@ export default function Health() {
     if (!userId) return
     setEditMode(false)
     setSelectedForDelete(new Set())
+
+    // A thread with no messages yet is a true empty draft — whether it came from "+ New Chat"
+    // or a prior topic click that was never sent. Re-tag and reuse it instead of stacking up
+    // throwaway empty threads every time someone browses topics before actually sending.
+    const openThread = threads.find((t) => t.id === selectedThreadId)
+    if (openThread && openThread.preview === null && !openThreadSending) {
+      const newTopic = topic?.label ?? null
+      if (newTopic !== openThread.topic) {
+        await supabase.from('chat_threads').update({ topic: newTopic }).eq('id', openThread.id)
+        setThreads((prev) => prev.map((t) => (t.id === openThread.id ? { ...t, topic: newTopic } : t)))
+      }
+      setPendingInitialDraft(topic?.starter)
+      return
+    }
 
     const { data: inserted } = await supabase
       .from('chat_threads')
@@ -184,17 +199,19 @@ export default function Health() {
               <CardContent className={cn('w-full', !selectedThread && 'flex flex-col items-center gap-3 text-center')}>
                 {selectedThread ? (
                   <HealthChatThread
-                    // Force a fresh mount per thread — without this, switching from one
-                    // already-open thread to a newly-created one (e.g. clicking another topic)
-                    // reuses the same component instance, and useState(initialDraft) only
-                    // evaluates on first mount, so the new starter text never appears.
-                    key={selectedThread.id}
+                    // Force a fresh mount per thread (and per re-tag of the same still-empty
+                    // thread) — without this, switching threads, or re-tagging the currently
+                    // open empty draft with a new topic, reuses the same component instance,
+                    // and useState(initialDraft) only evaluates on first mount, so the new
+                    // starter text never appears.
+                    key={`${selectedThread.id}|${selectedThread.topic ?? ''}`}
                     threadId={selectedThread.id}
                     threadTitle={selectedThread.title}
                     topic={selectedThread.topic}
                     initialDraft={pendingInitialDraft}
                     onBack={() => setSelectedThreadId(null)}
                     onThreadUpdated={handleThreadUpdated}
+                    onSendingChange={setOpenThreadSending}
                   />
                 ) : (
                   <>

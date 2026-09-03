@@ -44,6 +44,7 @@ export function HealthChatThread({
   initialDraft,
   onBack,
   onThreadUpdated,
+  onSendingChange,
 }: {
   threadId: string
   threadTitle: string | null
@@ -51,6 +52,7 @@ export function HealthChatThread({
   initialDraft?: string
   onBack?: () => void
   onThreadUpdated: (threadId: string, patch: { title?: string; updated_at: string; preview: string }) => void
+  onSendingChange?: (sending: boolean) => void
 }) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [loadingHistory, setLoadingHistory] = useState(true)
@@ -63,6 +65,14 @@ export function HealthChatThread({
     loadHistory()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [threadId])
+
+  // Lets the parent know a send is in flight on this (still-empty, by DB state) thread, so a
+  // topic click that lands mid-request creates a new thread instead of retagging/remounting
+  // the one an in-flight reply is about to land on.
+  useEffect(() => {
+    onSendingChange?.(sending)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sending])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
